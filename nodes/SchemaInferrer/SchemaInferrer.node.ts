@@ -4,9 +4,9 @@ import type {
   INodeType,
   INodeTypeDescription,
 } from 'n8n-workflow';
-import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 import { inferSchema } from '@jsonhero/schema-infer';
 import { compile } from 'json-schema-to-typescript';
+import { SchemaInferrerNodeError } from './SchemaInferrerNodeError';
 
 export class SchemaInferrer implements INodeType {
   description: INodeTypeDescription = {
@@ -19,8 +19,8 @@ export class SchemaInferrer implements INodeType {
     defaults: {
       name: 'Schema Inferrer',
     },
-    inputs: [NodeConnectionTypes.Main],
-    outputs: [NodeConnectionTypes.Main],
+    inputs: ['main'],
+    outputs: ['main'],
     usableAsTool: true,
     properties: [
       {
@@ -105,10 +105,10 @@ export class SchemaInferrer implements INodeType {
         try {
           parsedInput = JSON.parse(jsonInput);
         } catch (error) {
-          throw new NodeOperationError(
+          throw new SchemaInferrerNodeError(
             this.getNode(),
             `Invalid JSON input: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            { itemIndex },
+            { itemIndex, cause: error },
           );
         }
 
@@ -139,10 +139,10 @@ export class SchemaInferrer implements INodeType {
             });
             outputData.json.typescript = typescriptCode;
           } catch (error) {
-            throw new NodeOperationError(
+            throw new SchemaInferrerNodeError(
               this.getNode(),
               `Failed to generate TypeScript: ${error instanceof Error ? error.message : 'Unknown error'}`,
-              { itemIndex },
+              { itemIndex, cause: error },
             );
           }
         }
@@ -164,12 +164,17 @@ export class SchemaInferrer implements INodeType {
             },
           });
         } else {
+          if (error instanceof SchemaInferrerNodeError) {
+            error.context.itemIndex = itemIndex;
+            throw error;
+          }
           if (error instanceof Error && 'context' in error) {
             (error as { context: { itemIndex?: number } }).context.itemIndex = itemIndex;
             throw error;
           }
-          throw new NodeOperationError(this.getNode(), error as Error, {
+          throw new SchemaInferrerNodeError(this.getNode(), error instanceof Error ? error.message : 'Unknown error', {
             itemIndex,
+            cause: error,
           });
         }
       }
