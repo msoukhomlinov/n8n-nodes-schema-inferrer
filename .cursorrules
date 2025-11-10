@@ -219,5 +219,7 @@ Located in `/.cursor-rules`.
 - Prefer 429 status for rate limit detection; avoid brittle message matching.
 - Keep Autotask REST URLs consistent without trailing slashes.
 - Attachment content endpoints use `/data` and require both parent entity ID and attachment ID.
+- If encountering "Cannot find module" errors for n8n-workflow submodules (e.g., logger-proxy), try reinstalling dependencies: `Remove-Item -Recurse -Force node_modules && npm install`. This often resolves corrupted or incomplete package installations.
+- **pnpm ESM resolution fix**: When using pnpm with custom n8n nodes, pnpm's default `node-linker=isolated` creates a symlink structure that breaks ESM relative import resolution. When n8n-workflow's index.js tries to import './logger-proxy', Node.js ESM resolver can't resolve it through pnpm's symlinks. **Solution**: Configure `.npmrc` with `node-linker=hoisted` to use a node_modules structure similar to npm/yarn that works correctly with ESM. This is a proper configuration fix, not a workaround.
 
 # Scratchpad

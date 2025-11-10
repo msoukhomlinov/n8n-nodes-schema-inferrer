@@ -1,15 +1,22 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "ESNext",
-    "moduleResolution": "Node",
+    "target": "es2019",
+    "lib": ["es2019", "es2020", "es2022.error"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "sourceMap": true,
     "strict": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "paths": {
+      "*": ["node_modules/*"]
+    }
   },
-  "include": [],
+  "include": ["nodes/**/*", "credentials/**/*"],
   "exclude": ["node_modules", "dist", "build"]
 }
 

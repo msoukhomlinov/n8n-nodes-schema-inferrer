@@ -1,0 +1,55 @@
+{
+  "name": "n8n-nodes-schema-inferrer",
+  "version": "0.1.0",
+  "description": "n8n community node for inferring JSON schemas from sample data with optional TypeScript type generation",
+  "license": "MIT",
+  "homepage": "https://github.com/msoukhomlinov/n8n-nodes-schema-inferrer",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "schema",
+    "json-schema",
+    "typescript"
+  ],
+  "author": {
+    "name": "Max Soukhomlinov",
+    "email": "maxs@intellectit.com.au"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/msoukhomlinov/n8n-nodes-schema-inferrer.git"
+  },
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "npm run clean && n8n-node build",
+    "build:watch": "tsc --watch",
+    "dev": "n8n-node dev",
+    "lint": "n8n-node lint",
+    "lint:fix": "n8n-node lint --fix",
+    "release": "n8n-node release",
+    "prepublishOnly": "n8n-node prerelease"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "nodes": [
+      "dist/SchemaInferrer.node.js"
+    ]
+  },
+  "dependencies": {
+    "@jsonhero/schema-infer": "^0.1.5",
+    "json-schema-to-typescript": "^15.0.4"
+  },
+  "devDependencies": {
+    "@n8n/node-cli": "*",
+    "eslint": "^9.32.0",
+    "prettier": "^3.6.2",
+    "release-it": "^19.0.4",
+    "typescript": "^5.9.2"
+  },
+  "peerDependencies": {
+    "n8n-workflow": ">=1.0.0"
+  }
+}
