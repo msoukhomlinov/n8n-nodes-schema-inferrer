@@ -1,7 +1,7 @@
 {
   "name": "n8n-nodes-schema-inferrer",
   "version": "0.1.0",
-  "description": "n8n community node for inferring JSON schemas from sample data with optional TypeScript type generation",
+  "description": "n8n community node for inferring JSON schemas from sample data",
   "license": "MIT",
   "homepage": "https://github.com/msoukhomlinov/n8n-nodes-schema-inferrer",
   "keywords": [
@@ -39,8 +39,7 @@
     ]
   },
   "dependencies": {
-    "@jsonhero/schema-infer": "^0.1.5",
-    "json-schema-to-typescript": "^15.0.4"
+    "@jsonhero/schema-infer": "^0.1.5"
   },
   "devDependencies": {
     "@n8n/node-cli": "*",
