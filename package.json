@@ -21,13 +21,11 @@
   },
   "scripts": {
     "clean": "rimraf dist",
-    "build": "npm run clean && n8n-node build",
+    "build": "npm run clean && tsc && npm run copy:assets && npm run postbuild",
     "build:watch": "tsc --watch",
-    "dev": "n8n-node dev",
-    "lint": "n8n-node lint",
-    "lint:fix": "n8n-node lint --fix",
-    "release": "n8n-node release",
-    "prepublishOnly": "n8n-node prerelease"
+    "dev": "tsc --watch",
+    "copy:assets": "gulp copyAssets",
+    "postbuild": "rimraf node_modules/n8n-workflow"
   },
   "files": [
     "dist"
@@ -35,20 +33,16 @@
   "n8n": {
     "n8nNodesApiVersion": 1,
     "nodes": [
-      "dist/SchemaInferrer.node.js"
+      "dist/nodes/SchemaInferrer/SchemaInferrer.node.js"
     ]
   },
-  "dependencies": {
-    "@jsonhero/schema-infer": "^0.1.5"
-  },
   "devDependencies": {
-    "@n8n/node-cli": "*",
-    "eslint": "^9.32.0",
-    "prettier": "^3.6.2",
-    "release-it": "^19.0.4",
+    "gulp": "^5.0.1",
+    "n8n-workflow": "*",
+    "rimraf": "^6.1.0",
     "typescript": "^5.9.2"
   },
   "peerDependencies": {
-    "n8n-workflow": ">=1.0.0"
+    "n8n-workflow": "*"
   }
 }
