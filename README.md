@@ -1,10 +1,12 @@
 # n8n-nodes-schema-inferrer
 
-An n8n community node for inferring JSON schemas from sample data.
+An n8n community node for inferring JSON schemas from sample data using `quicktype-core`.
 
 ## Features
 
-- Generate JSON Schema from sample JSON data using `@jsonhero/schema-infer`
+- Generate JSON Schema from one or multiple input JSON data items
+- Automatically merges multiple samples into a unified schema
+- Uses `quicktype-core` for robust schema inference
 
 ## Installation
 
@@ -27,13 +29,16 @@ Or if you're using n8n's community nodes feature, add it to your `package.json`:
 ## Usage
 
 1. Add the "Schema Inferrer" node to your workflow.
-2. Enter sample JSON data in the **JSON Input** field.
-3. Execute the node to generate the inferred JSON Schema.
+2. Connect it to a node that outputs JSON data (one or multiple items).
+3. Execute the node to generate the inferred JSON Schema from all input items.
+
+The node will automatically process all input items and merge them into a single unified JSON schema.
 
 ### Example
 
-**Input JSON**
+**Input JSON Items** (from previous node)
 
+Item 1:
 ```json
 {
   "id": "123",
@@ -44,25 +49,37 @@ Or if you're using n8n's community nodes feature, add it to your `package.json`:
 }
 ```
 
-**Output JSON Schema**
+Item 2:
+```json
+{
+  "id": "456",
+  "name": "Jane Smith",
+  "email": "jane@example.com",
+  "age": 25
+}
+```
+
+**Output JSON Schema** (single item)
 
 ```json
 {
-  "jsonSchema": {
+  "schema": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
       "name": { "type": "string" },
-      "email": { "type": "string", "format": "email" },
+      "email": { "type": "string" },
       "age": { "type": "integer" },
       "active": { "type": "boolean" }
     },
-    "required": ["id", "name", "email", "age", "active"]
+    "required": ["id", "name", "email", "age"]
   }
 }
 ```
 
+Note: The schema merges all input items, so properties that appear in all items will be marked as required, while optional properties (like `active` in the example above) may be marked as optional depending on their presence across samples.
+
 ## License
 
-MIT
+Apache-2.0

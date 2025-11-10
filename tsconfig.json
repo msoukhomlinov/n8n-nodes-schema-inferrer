@@ -1,24 +1,21 @@
 {
   "compilerOptions": {
-    "target": "es2019",
-    "lib": ["es2019", "es2020", "es2022.error"],
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "sourceMap": true,
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "Node",
+    "declaration": true,
+    "declarationMap": false,
+    "sourceMap": false,
+    "outDir": "dist",
+    "rootDir": ".",
     "strict": true,
+    "noImplicitAny": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "outDir": "./dist",
-    "rootDir": ".",
-    "baseUrl": ".",
-    "paths": {
-      "*": ["node_modules/*"]
-    }
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["nodes/**/*", "credentials/**/*"],
-  "exclude": ["node_modules", "dist", "build"]
+  "include": ["src/**/*.ts", "src/*.ts"],
+  "exclude": ["dist", "node_modules", "**/*.test.ts"]
 }
-
-
