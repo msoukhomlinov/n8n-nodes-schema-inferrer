@@ -84,6 +84,14 @@ export const sqlOverrideOptions: INodeProperties = {
 				},
 			],
 		},
+		{
+			displayName: 'Preserve Nullability On Type Override',
+			name: 'preserveNullabilityOnTypeOverride',
+			type: 'boolean',
+			default: true,
+			description:
+				'When changing a field type via override rules, keep original nullability (union with null) unless disabled.',
+		},
 	],
 };
 

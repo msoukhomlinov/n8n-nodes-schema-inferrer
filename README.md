@@ -243,6 +243,13 @@ id:string->integer, age:string->integer
 - Type aliases are normalised (e.g., `int` → `integer`, `bool` → `boolean`)
  - Wildcards supported in Quick Rules (contains, prefix, suffix) as above
 
+**Nullability Preservation**:
+- **Preserve Nullability On Type Override** (default: true)
+  - When enabled, fields that originally allowed null values will maintain their nullability after type overrides
+  - For example, if a field has type `["string", "null"]` and you override it to `uuid`, it becomes `["string", "null"]` with format `uuid`
+  - This ensures that nullable fields in your schema remain nullable in the generated SQL DDL
+  - When disabled, type overrides will strip nullability, potentially making fields NOT NULL if they're in the required array
+
 **Common Use Cases**:
 - Convert string IDs to integers: `id:string->integer`
 - Force numeric postcodes: `address.postcode:string->integer`

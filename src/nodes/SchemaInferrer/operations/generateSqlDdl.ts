@@ -211,7 +211,7 @@ function walkSchema(
   }
 }
 
-function applyOverrides(schema: JsonSchema, rules: OverrideRule[]): void {
+function applyOverrides(schema: JsonSchema, rules: OverrideRule[], preserveNullability: boolean): void {
   if (rules.length === 0) return;
   const appliedFields = new Set<string>();
   const formatTypes: JsonType[] = ['uuid', 'date-time', 'date', 'time'];
@@ -245,6 +245,9 @@ function applyOverrides(schema: JsonSchema, rules: OverrideRule[]): void {
       
       for (const rule of rules) {
         if (matchesFieldName(fieldName, rule.fieldName, rule.matchType)) {
+          // Capture original nullability before applying type change
+          const originallyNullable = preserveNullability && schemaAllowsNull(node);
+          
           // Clear existing format if we're changing the type
           if (node.format) {
             delete node.format;
@@ -266,6 +269,15 @@ function applyOverrides(schema: JsonSchema, rules: OverrideRule[]): void {
           } else {
             // Standard JSON Schema types
             node.type = rule.newType;
+          }
+          
+          // Restore nullability if it was originally nullable and preservation is enabled
+          if (originallyNullable) {
+            if (typeof node.type === 'string') {
+              node.type = [node.type, 'null'];
+            } else if (Array.isArray(node.type) && !node.type.includes('null')) {
+              node.type.push('null');
+            }
           }
           
           appliedFields.add(path);
@@ -734,6 +746,7 @@ export function generateSqlDdl(
   const sqlOverrideOptionsRaw = context.getNodeParameter('sqlOverrideOptions', 0, {}) as {
     overrideRulesText?: string;
     overrideRules?: { rule?: Array<{ fieldName: string; matchType: 'exact' | 'partial'; newType: string }> };
+    preserveNullabilityOnTypeOverride?: boolean;
   };
   const overrideRulesText = sqlOverrideOptionsRaw.overrideRulesText ?? '';
   const parsedRules = parseOverrideRules(overrideRulesText);
@@ -750,7 +763,8 @@ export function generateSqlDdl(
       newType: normaliseType(r.newType)!,
     }));
   const combinedRules = [...parsedRules, ...advancedRules];
-  applyOverrides(schema, combinedRules);
+  const preserveNullability = sqlOverrideOptionsRaw.preserveNullabilityOnTypeOverride ?? true;
+  applyOverrides(schema, combinedRules, preserveNullability);
 
   try {
     const sql = convertSchemaToSql(

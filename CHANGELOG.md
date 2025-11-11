@@ -2,6 +2,19 @@
 
 All notable changes to n8n-nodes-schema-inferrer will be documented in this file.
 
+## [0.4.0] - 2025-11-11
+
+### Added
+- **Preserve Nullability On Type Override** option in SQL DDL Override Options (default: true)
+  - When enabled, fields that originally allowed null values maintain their nullability after type overrides
+  - Ensures nullable fields in the schema remain nullable in generated SQL DDL
+  - Works with all database dialects (PostgreSQL, MySQL, MSSQL, SQLite, Oracle, CockroachDB)
+
+### Changed
+- Type overrides now preserve original nullability by default when changing field types
+- Nullability preservation applies to both Quick Rules and Advanced Rules
+
+
 ## [0.3.0] - 2025-11-11
 
 ### Added
