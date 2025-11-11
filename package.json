@@ -1,0 +1,68 @@
+{
+  "name": "n8n-nodes-schema-inferrer",
+  "version": "0.1.0",
+  "description": "An n8n community node for inferring JSON schemas from sample data using quicktype-core.",
+  "author": "Max Soukhomlinov <maxs@intellectit.com.au>",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/msoukhomlinov/n8n-nodes-schema-inferrer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/msoukhomlinov/n8n-nodes-schema-inferrer/issues"
+  },
+  "homepage": "https://github.com/msoukhomlinov/n8n-nodes-schema-inferrer#readme",
+  "keywords": [
+    "n8n",
+    "n8n-community-node",
+    "n8n-community-node-package",
+    "workflow",
+    "integration"
+  ],
+  "engines": {
+    "node": ">=20.15"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "npm run clean && tsc -p tsconfig.build.json && gulp --gulpfile gulpfile.cjs copyAssets",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run lint && npm run typecheck && npm run build"
+  },
+  "dependencies": {
+    "knex": "^3.1.0",
+    "n8n-workflow": "^1.41.0",
+    "quicktype-core": "^23.0.170"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.2.5",
+    "rimraf": "^5.0.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3",
+    "gulp": "^4.0.2"
+  },
+  "n8n": {
+    "nodes": [
+      "dist/nodes/SchemaInferrer/SchemaInferrer.node.js"
+    ],
+    "credentials": [
+      "dist/credentials/SchemaInferrerConfig.credentials.js"
+    ]
+  }
+}
+
+
