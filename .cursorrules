@@ -220,7 +220,36 @@ Located in `/.cursor-rules`.
 - Keep Autotask REST URLs consistent without trailing slashes.
 - Attachment content endpoints use `/data` and require both parent entity ID and attachment ID.
 - If encountering "Cannot find module" errors for n8n-workflow submodules (e.g., logger-proxy), try reinstalling dependencies: `Remove-Item -Recurse -Force node_modules && npm install`. This often resolves corrupted or incomplete package installations.
-- **pnpm ESM resolution fix**: When using pnpm with custom n8n nodes, pnpm's default `node-linker=isolated` creates a symlink structure that breaks ESM relative import resolution. When n8n-workflow's index.js tries to import './logger-proxy', Node.js ESM resolver can't resolve it through pnpm's symlinks. **Solution**: Configure `.npmrc` with `node-linker=hoisted` to use a node_modules structure similar to npm/yarn that works correctly with ESM. This is a proper configuration fix, not a workaround.
 - **Quicktype nested definitions**: Quicktype generates JSON schemas with a `definitions` section where each definition can have its own `required` array. When processing schema properties (e.g., to clear or set required fields), you must recursively process all definitions, not just the top-level schema. The schema structure uses `$ref` to reference definitions (e.g., `"$ref": "#/definitions/Attributes"`).
+- **Knex.js SQL generation**: When using Knex.js to generate SQL DDL without a database connection, you still need to provide a dummy connection config. The `.toSQL()` method returns an array of query objects `[{ sql: string, bindings: [] }]`, not a single string. Extract the SQL from the first array element. Always call `knexInstance.destroy()` after generating SQL to clean up resources. Use database-specific column types: `jsonb()` for PostgreSQL, `json()` for MySQL, `text()` for SQLite when handling JSON data.
+- **JSON Schema property detection**: When processing JSON schemas for SQL DDL generation, schemas may have properties at different locations: (1) directly in `item.json.schema.properties`, (2) directly in `item.json.properties` (if the whole object is the schema), or (3) in `schema.definitions[definitionName].properties`. Always check all these locations using a helper function that searches root properties first, then definitions. Use the schema that contains the properties for subsequent processing.
 
 # Scratchpad
+
+## Current Task: Add SQL DDL Generation Operation
+
+### Task Overview
+Adding a new operation to generate SQL CREATE TABLE statements from JSON schemas using Knex.js. This will support multiple database types (PostgreSQL, MySQL, SQLite3, MSSQL, Oracle, CockroachDB).
+
+### Implementation Progress
+[X] Add knex dependency
+[X] Update node description with new operation and UI fields
+[X] Add operation case in execute method
+[X] Implement generateSqlDdl() function
+[X] Implement type mapping function
+[X] Implement schema processor function
+[X] Implement SQL generation function
+[X] Add validation and error handling
+
+### Implementation Complete ✅
+All tasks completed successfully. The SQL DDL generation operation has been fully implemented with:
+- Knex.js integration for SQL generation
+- Support for multiple database types (PostgreSQL, MySQL, MariaDB, SQLite3, MSSQL, Oracle, CockroachDB)
+- JSON Schema type mapping to SQL column types
+- Primary key detection (auto-detect "id" or user-specified)
+- Nullable/required field handling
+- Nested object/array handling (converted to JSON/JSONB columns)
+- Table and column name validation and sanitization
+- Comprehensive error handling with NodeOperationError
+
+**ESM Compatibility Issue Resolved**: Switched from ESM to CommonJS to fix Windows/Node.js 22 compatibility issues with n8n-workflow package. n8n now starts successfully with the new feature.
