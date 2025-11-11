@@ -119,6 +119,42 @@ Advanced rules:
 - Field Path (for Full Path + Type)
 - Current Type and New Type: one of string, number, integer, boolean, object, array, null
 
+### Naming Options
+
+Control how field names are handled in the generated schema and SQL DDL.
+
+#### Create Schema Operation
+
+- **Lowercase All Fields** (default: off)
+  - When enabled, converts all property names to lowercase in the generated schema
+  - Applies recursively to nested objects and arrays
+  - Updates `required` arrays to match lowercased field names
+  - Useful for ensuring consistent casing when generating SQL DDL later
+
+#### Generate SQL DDL Operation
+
+- **Lowercase All Fields** (default: off)
+  - When enabled, converts all property names to lowercase before generating SQL
+  - Applies to the input schema if not already lowercased
+  - Also lowercases user-provided primary key field names
+  - Ensures column names match the schema when lowercasing is enabled
+
+- **Quote Identifiers** (default: off)
+  - When enabled, quotes table and column names in the generated SQL
+  - Preserves original case and special characters
+  - Uses database-specific quoting:
+    - PostgreSQL/CockroachDB: double quotes `"identifier"`
+    - MySQL/SQLite: backticks `` `identifier` ``
+    - MSSQL: square brackets `[identifier]`
+    - Oracle: double quotes `"identifier"`
+  - Automatically escapes inner quote characters
+  - Recommended when preserving mixed case or using reserved words
+
+**Use Cases**:
+- Enable "Lowercase All Fields" in both operations to ensure consistent casing from schema creation through DDL generation to data insertion
+- Enable "Quote Identifiers" when you need to preserve original field names with mixed case or special characters
+- Use both together when you want lowercase field names but need to quote them for compatibility with case-sensitive databases
+
 ### Generate SQL DDL
 
 The "Generate SQL DDL" operation converts a JSON schema to SQL CREATE TABLE statements.
@@ -145,6 +181,9 @@ The "Generate SQL DDL" operation converts a JSON schema to SQL CREATE TABLE stat
 - Database Type: PostgreSQL
 - Table Name: users
 - Auto-detect Primary Key: true (will detect "id" field)
+- Naming Options (optional):
+  - Lowercase All Fields: convert all field names to lowercase (default: off)
+  - Quote Identifiers: quote table and column names in SQL (default: off)
 - Required Field Options:
   - Override Inferred Required: false (default; preserves inferred required)
   - Required Fields: optional comma-separated names to add as required
@@ -173,6 +212,10 @@ Override rules let you modify schema field types before SQL generation, giving y
 - Full path + type: `path.to.field:type->newType`
 - Type-only: `type->newType`
 - Multiple rules: comma-separated
+- Wildcards:
+  - Contains: `*part*->newType`
+  - Prefix: `pre*->newType`
+  - Suffix: `*suf->newType`
 
 **Examples**:
 ```
@@ -180,6 +223,7 @@ user.address.postcode:string->integer
 createdAt:string->string
 string->number
 id:string->integer, age:string->integer
+*created*->date-time, created*->date-time, *Date->date-time
 ```
 
 **Advanced Rules Builder**: provides a structured UI for building rules with:
@@ -197,6 +241,7 @@ id:string->integer, age:string->integer
 - Dot-paths follow object nesting (e.g., `parent.child.field`)
 - Array items are addressed via their container path
 - Type aliases are normalised (e.g., `int` → `integer`, `bool` → `boolean`)
+ - Wildcards supported in Quick Rules (contains, prefix, suffix) as above
 
 **Common Use Cases**:
 - Convert string IDs to integers: `id:string->integer`

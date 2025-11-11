@@ -31,12 +31,79 @@ type JsonType =
 
 interface OverrideRule {
   fieldName: string;
-  matchType: 'exact' | 'partial';
+  matchType: 'exact' | 'partial' | 'prefix' | 'suffix';
   newType: JsonType;
 }
 
-function sanitizeColumnName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+function lowercaseSchemaProperties(schema: JsonSchema): void {
+  // Transform properties keys to lowercase
+  if (schema.properties) {
+    const newProperties: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(schema.properties)) {
+      newProperties[key.toLowerCase()] = value;
+    }
+    schema.properties = newProperties;
+    
+    // Update required array to match lowercased keys
+    if (schema.required && Array.isArray(schema.required)) {
+      schema.required = schema.required.map((field) => field.toLowerCase());
+    }
+  }
+  
+  // Recursively process definitions
+  if (schema.definitions) {
+    for (const definitionKey of Object.keys(schema.definitions)) {
+      lowercaseSchemaProperties(schema.definitions[definitionKey]);
+    }
+  }
+  
+  // Recursively process nested objects in properties
+  if (schema.properties) {
+    for (const value of Object.values(schema.properties)) {
+      if (value && typeof value === 'object') {
+        const propSchema = value as JsonSchema;
+        if (propSchema.properties || propSchema.items) {
+          lowercaseSchemaProperties(propSchema);
+        }
+        // Handle array items
+        if (propSchema.items && typeof propSchema.items === 'object') {
+          const itemsSchema = propSchema.items as JsonSchema;
+          if (itemsSchema.properties) {
+            lowercaseSchemaProperties(itemsSchema);
+          }
+        }
+      }
+    }
+  }
+}
+
+function sanitizeColumnName(
+  name: string,
+  lowercaseAllFields: boolean,
+  quoteIdentifiers: boolean,
+): string {
+  let sanitized = name.trim();
+  
+  // Apply lowercasing if enabled
+  if (lowercaseAllFields) {
+    sanitized = sanitized.toLowerCase();
+  }
+  
+  // If quoting is enabled, minimal sanitization (just trim)
+  if (quoteIdentifiers) {
+    return sanitized;
+  }
+  
+  // Otherwise, sanitize for SQL portability
+  sanitized = sanitized.replace(/[^a-zA-Z0-9_]/g, '_');
+  // Collapse multiple underscores
+  sanitized = sanitized.replace(/_+/g, '_');
+  // Ensure starts with letter or underscore
+  if (sanitized.length > 0 && !/^[a-zA-Z_]/.test(sanitized)) {
+    sanitized = '_' + sanitized;
+  }
+  
+  return sanitized;
 }
 
 function normaliseType(t: string): JsonType | null {
@@ -76,7 +143,11 @@ function parseOverrideRules(text: string): OverrideRule[] {
   const rules: OverrideRule[] = [];
   const tokens = text.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
   for (const token of tokens) {
-    // Format: fieldName->newType (exact) or *fieldName*->newType (partial)
+    // Formats supported:
+    // - fieldName->newType (exact)
+    // - *fieldName*->newType (partial contains)
+    // - *suffix->newType   (suffix match)
+    // - prefix*->newType   (prefix match)
     const arrowIdx = token.indexOf('->');
     if (arrowIdx === -1) continue;
     
@@ -87,12 +158,23 @@ function parseOverrideRules(text: string): OverrideRule[] {
     if (!newType) continue;
     
     let fieldName = leftPart;
-    let matchType: 'exact' | 'partial' = 'exact';
+    let matchType: 'exact' | 'partial' | 'prefix' | 'suffix' = 'exact';
     
-    // Check if field name is surrounded by asterisks for partial matching
-    if (leftPart.startsWith('*') && leftPart.endsWith('*') && leftPart.length > 2) {
+    // Determine wildcard style
+    const startsWithAsterisk = leftPart.startsWith('*');
+    const endsWithAsterisk = leftPart.endsWith('*');
+    if (startsWithAsterisk && endsWithAsterisk && leftPart.length > 2) {
+      // *contains*
       fieldName = leftPart.slice(1, -1);
       matchType = 'partial';
+    } else if (startsWithAsterisk && leftPart.length > 1) {
+      // *suffix
+      fieldName = leftPart.slice(1);
+      matchType = 'suffix';
+    } else if (endsWithAsterisk && leftPart.length > 1) {
+      // prefix*
+      fieldName = leftPart.slice(0, -1);
+      matchType = 'prefix';
     }
     
     if (!fieldName) continue;
@@ -135,50 +217,72 @@ function applyOverrides(schema: JsonSchema, rules: OverrideRule[]): void {
   const formatTypes: JsonType[] = ['uuid', 'date-time', 'date', 'time'];
   const sqlSpecificTypes: JsonType[] = ['json', 'jsonb', 'text'];
   
-  const matchesFieldName = (fieldName: string, ruleName: string, matchType: 'exact' | 'partial'): boolean => {
-    if (matchType === 'exact') {
-      return fieldName === ruleName;
+  const matchesFieldName = (
+    fieldName: string,
+    ruleName: string,
+    matchType: 'exact' | 'partial' | 'prefix' | 'suffix',
+  ): boolean => {
+    switch (matchType) {
+      case 'exact':
+        return fieldName === ruleName;
+      case 'partial':
+        return fieldName.includes(ruleName);
+      case 'prefix':
+        return fieldName.startsWith(ruleName);
+      case 'suffix':
+        return fieldName.endsWith(ruleName);
+      default:
+        return fieldName === ruleName;
     }
-    // Partial matching
-    return fieldName.includes(ruleName);
   };
   
-  walkSchema(schema, (path, node) => {
-    if (appliedFields.has(path)) return;
-    
-    // Extract just the field name (last part of path) for matching
-    const fieldName = path.split('.').pop() || path;
-    
-    for (const rule of rules) {
-      if (matchesFieldName(fieldName, rule.fieldName, rule.matchType)) {
-        // Clear existing format if we're changing the type
-        if (node.format) {
-          delete node.format;
-        }
-        
-        // Set format for format-based types
-        if (formatTypes.includes(rule.newType)) {
-          node.type = 'string';
-          node.format = rule.newType;
-        } else if (sqlSpecificTypes.includes(rule.newType)) {
-          // For SQL-specific types like json/jsonb/text, set the base type
-          if (rule.newType === 'json' || rule.newType === 'jsonb') {
-            node.type = 'object';
-            node.format = rule.newType;
-          } else if (rule.newType === 'text') {
-            node.type = 'string';
-            node.format = 'text';
+  const applyToSchema = (target: JsonSchema): void => {
+    walkSchema(target, (path, node) => {
+      if (appliedFields.has(path)) return;
+      
+      // Extract just the field name (last part of path) for matching
+      const fieldName = path.split('.').pop() || path;
+      
+      for (const rule of rules) {
+        if (matchesFieldName(fieldName, rule.fieldName, rule.matchType)) {
+          // Clear existing format if we're changing the type
+          if (node.format) {
+            delete node.format;
           }
-        } else {
-          // Standard JSON Schema types
-          node.type = rule.newType;
+          
+          // Set format for format-based types
+          if (formatTypes.includes(rule.newType)) {
+            node.type = 'string';
+            node.format = rule.newType;
+          } else if (sqlSpecificTypes.includes(rule.newType)) {
+            // For SQL-specific types like json/jsonb/text, set the base type
+            if (rule.newType === 'json' || rule.newType === 'jsonb') {
+              node.type = 'object';
+              node.format = rule.newType;
+            } else if (rule.newType === 'text') {
+              node.type = 'string';
+              node.format = 'text';
+            }
+          } else {
+            // Standard JSON Schema types
+            node.type = rule.newType;
+          }
+          
+          appliedFields.add(path);
+          break; // Apply first matching rule only
         }
-        
-        appliedFields.add(path);
-        break; // Apply first matching rule only
       }
+    });
+  };
+
+  // Apply to root schema
+  applyToSchema(schema);
+  // Also apply to definitions, if present
+  if (schema.definitions) {
+    for (const def of Object.values(schema.definitions)) {
+      applyToSchema(def);
     }
-  });
+  }
 }
 
 function validateTableName(tableName: string): boolean {
@@ -332,15 +436,24 @@ function processSchemaProperties(
   table: knex.Knex.CreateTableBuilder,
   databaseType: string,
   primaryKeyFields: string[],
+  lowercaseAllFields: boolean,
+  quoteIdentifiers: boolean,
 ): void {
   if (!schema.properties) {
     throw new Error('Schema has no properties to convert');
   }
   const requiredFields = schema.required || [];
   const properties = schema.properties as Record<string, Record<string, unknown>>;
+  
+  // Sanitize primary key fields for comparison
+  const sanitizedPrimaryKeyFields = primaryKeyFields.map((field) =>
+    sanitizeColumnName(field, lowercaseAllFields, quoteIdentifiers),
+  );
+  
   for (const [propertyName, propertyDef] of Object.entries(properties)) {
-    const sanitizedName = sanitizeColumnName(propertyName);
-    const isPrimaryKey = primaryKeyFields.includes(propertyName);
+    const sanitizedName = sanitizeColumnName(propertyName, lowercaseAllFields, quoteIdentifiers);
+    // Compare sanitized names for primary key matching
+    const isPrimaryKey = sanitizedPrimaryKeyFields.includes(sanitizedName);
     const listedRequired = requiredFields.includes(propertyName);
     const allowsNull = schemaAllowsNull(propertyDef);
     const isRequired = listedRequired && !allowsNull;
@@ -359,13 +472,47 @@ function processSchemaProperties(
   }
 }
 
+function getWrapIdentifier(
+  databaseType: string,
+  quoteIdentifiers: boolean,
+): ((identifier: string) => string) | undefined {
+  if (!quoteIdentifiers) {
+    return undefined;
+  }
+  
+  return (identifier: string): string => {
+    switch (databaseType) {
+      case 'pg':
+      case 'cockroachdb':
+        // PostgreSQL: double quotes, escape inner quotes by doubling
+        return `"${identifier.replace(/"/g, '""')}"`;
+      case 'mysql2':
+      case 'sqlite3':
+        // MySQL/SQLite: backticks, escape inner backticks by doubling
+        return `\`${identifier.replace(/`/g, '``')}\``;
+      case 'mssql':
+        // MSSQL: square brackets, escape inner brackets by doubling
+        return `[${identifier.replace(/\[/g, '[[').replace(/\]/g, ']]')}]`;
+      case 'oracledb':
+        // Oracle: double quotes, escape inner quotes by doubling
+        return `"${identifier.replace(/"/g, '""')}"`;
+      default:
+        // Default to double quotes
+        return `"${identifier.replace(/"/g, '""')}"`;
+    }
+  };
+}
+
 function convertSchemaToSql(
   schema: JsonSchema,
   tableName: string,
   databaseType: string,
   primaryKeyFields: string[],
+  lowercaseAllFields: boolean,
+  quoteIdentifiers: boolean,
 ): string {
-  const knexInstance = knex({
+  const wrapIdentifier = getWrapIdentifier(databaseType, quoteIdentifiers);
+  const knexConfig: knex.Knex.Config = {
     client: databaseType === 'cockroachdb' ? 'pg' : databaseType,
     connection: {
       host: 'localhost',
@@ -373,10 +520,26 @@ function convertSchemaToSql(
       password: 'password',
       database: 'database',
     },
-  });
+  };
+  
+  if (wrapIdentifier) {
+    knexConfig.wrapIdentifier = wrapIdentifier;
+  }
+  
+  const knexInstance = knex(knexConfig);
   try {
-    const builder = knexInstance.schema.createTable(tableName, (table) => {
-      processSchemaProperties(schema, table, databaseType, primaryKeyFields);
+    const sanitizedTableName = quoteIdentifiers
+      ? tableName
+      : sanitizeColumnName(tableName, lowercaseAllFields, false);
+    const builder = knexInstance.schema.createTable(sanitizedTableName, (table) => {
+      processSchemaProperties(
+        schema,
+        table,
+        databaseType,
+        primaryKeyFields,
+        lowercaseAllFields,
+        quoteIdentifiers,
+      );
     });
     const sqlArray = builder.toSQL();
     if (sqlArray.length === 0) {
@@ -504,7 +667,7 @@ export function generateSqlDdl(
     );
   }
   const effectiveRoot = getEffectiveRootObjectSchema(schema);
-  const propertiesInfo = findSchemaProperties(effectiveRoot);
+  let propertiesInfo = findSchemaProperties(effectiveRoot);
   if (!propertiesInfo) {
     throw new NodeOperationError(
       context.getNode(),
@@ -512,6 +675,26 @@ export function generateSqlDdl(
     );
   }
   schema = propertiesInfo.sourceSchema;
+  
+  // Get naming options
+  const namingOptionsRaw = context.getNodeParameter('namingOptions', 0, {}) as {
+    lowercaseAllFields?: boolean;
+    quoteIdentifiers?: boolean;
+  };
+  const lowercaseAllFields = namingOptionsRaw.lowercaseAllFields ?? false;
+  const quoteIdentifiers = namingOptionsRaw.quoteIdentifiers ?? false;
+  
+  // Apply lowercasing if enabled (before other processing)
+  if (lowercaseAllFields) {
+    lowercaseSchemaProperties(schema);
+    // Re-find properties after lowercasing
+    const updatedPropertiesInfo = findSchemaProperties(schema);
+    if (updatedPropertiesInfo) {
+      propertiesInfo = updatedPropertiesInfo;
+      schema = propertiesInfo.sourceSchema;
+    }
+  }
+  
   const databaseType = context.getNodeParameter('databaseType', 0) as string;
   const tableName = context.getNodeParameter('tableName', 0) as string;
   try {
@@ -534,6 +717,10 @@ export function generateSqlDdl(
       .split(',')
       .map((field) => field.trim())
       .filter((field) => field.length > 0);
+    // Lowercase primary key fields if lowercasing is enabled
+    if (lowercaseAllFields) {
+      primaryKeyFields = primaryKeyFields.map((field) => field.toLowerCase());
+    }
   } else if (autoDetectPrimaryKey) {
     const propertyNames = Object.keys(propertiesInfo.properties);
     for (const propName of propertyNames) {
@@ -566,7 +753,14 @@ export function generateSqlDdl(
   applyOverrides(schema, combinedRules);
 
   try {
-    const sql = convertSchemaToSql(schema, tableName, databaseType, primaryKeyFields);
+    const sql = convertSchemaToSql(
+      schema,
+      tableName,
+      databaseType,
+      primaryKeyFields,
+      lowercaseAllFields,
+      quoteIdentifiers,
+    );
     const capDebug = (value: unknown): unknown => {
       try {
         const MAX_BYTES = 10 * 1024;

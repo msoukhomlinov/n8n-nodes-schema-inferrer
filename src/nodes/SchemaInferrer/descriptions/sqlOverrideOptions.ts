@@ -22,9 +22,9 @@ export const sqlOverrideOptions: INodeProperties = {
 			},
 			default: '',
 			description:
-				'Comma-separated rules. Exact match: fieldName->newType, Partial match: *fieldName*->newType',
+				'Comma-separated rules. Exact: field->type, Contains: *field*->type, Prefix: pre*->type, Suffix: *suf->type',
 			placeholder:
-				'id->uuid, *created*->date-time, description->text',
+				'id->uuid, *created*->date-time, created*->date-time, *Date->date-time',
 		},
 		{
 			displayName: 'Advanced Rules',

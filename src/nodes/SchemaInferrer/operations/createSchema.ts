@@ -49,6 +49,48 @@ function clearAllRequiredFields(schema: JsonSchema): void {
   }
 }
 
+function lowercaseSchemaProperties(schema: JsonSchema): void {
+  // Transform properties keys to lowercase
+  if (schema.properties) {
+    const newProperties: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(schema.properties)) {
+      newProperties[key.toLowerCase()] = value;
+    }
+    schema.properties = newProperties;
+    
+    // Update required array to match lowercased keys
+    if (schema.required && Array.isArray(schema.required)) {
+      schema.required = schema.required.map((field) => field.toLowerCase());
+    }
+  }
+  
+  // Recursively process definitions
+  if (schema.definitions) {
+    for (const definitionKey of Object.keys(schema.definitions)) {
+      lowercaseSchemaProperties(schema.definitions[definitionKey]);
+    }
+  }
+  
+  // Recursively process nested objects in properties
+  if (schema.properties) {
+    for (const value of Object.values(schema.properties)) {
+      if (value && typeof value === 'object') {
+        const propSchema = value as JsonSchema;
+        if (propSchema.properties || propSchema.items) {
+          lowercaseSchemaProperties(propSchema);
+        }
+        // Handle array items
+        if (propSchema.items && typeof propSchema.items === 'object') {
+          const itemsSchema = propSchema.items as JsonSchema;
+          if (itemsSchema.properties) {
+            lowercaseSchemaProperties(itemsSchema);
+          }
+        }
+      }
+    }
+  }
+}
+
 function setRequiredFields(
   schema: JsonSchema,
   requiredFieldNames: string[],
@@ -175,6 +217,15 @@ export async function createSchema(
     const { lines } = await quicktype(quicktypeOptions);
     const schemaString = lines.join('\n');
     let schema = JSON.parse(schemaString) as JsonSchema;
+
+    // Apply lowercasing if enabled (before other transformations)
+    const namingOptionsRaw = context.getNodeParameter('namingOptions', 0, {}) as {
+      lowercaseAllFields?: boolean;
+    };
+    const lowercaseAllFields = namingOptionsRaw.lowercaseAllFields ?? false;
+    if (lowercaseAllFields) {
+      lowercaseSchemaProperties(schema);
+    }
 
     const minimiseOutput = context.getNodeParameter('minimiseOutput', 0, true) as boolean;
     const includeDefinitions = context.getNodeParameter('includeDefinitions', 0, false) as boolean;

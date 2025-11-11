@@ -8,6 +8,7 @@ import { outputFormatting } from './outputFormatting.js';
 import { databaseType, tableName, primaryKeyOptions } from './sqlOptions.js';
 import { sqlOverrideOptions } from './sqlOverrideOptions.js';
 import { minimiseOutput, includeDefinitions } from './outputSizeOptions.js';
+import { namingOptionsCreate, namingOptionsSqlDdl } from './namingOptions.js';
 
 export const schemaInferrerNodeProperties = [
   operationProperty,
@@ -16,6 +17,7 @@ export const schemaInferrerNodeProperties = [
   inferenceOptions,
   overrideOptions,
   outputFormatting,
+  namingOptionsCreate,
   minimiseOutput,
   includeDefinitions,
   sqlDdlNotice,
@@ -23,6 +25,7 @@ export const schemaInferrerNodeProperties = [
   tableName,
   primaryKeyOptions,
   sqlOverrideOptions,
+  namingOptionsSqlDdl,
 ] satisfies INodeProperties[];
 
 
