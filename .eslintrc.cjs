@@ -3,7 +3,7 @@ module.exports = {
   root: true,
   parser: '@typescript-eslint/parser',
   parserOptions: {
-    project: ['./tsconfig.json'],
+    project: ['./tsconfig.eslint.json'],
     sourceType: 'module',
     ecmaVersion: 2020,
   },
@@ -22,7 +22,7 @@ module.exports = {
     'no-console': 'warn',
     '@typescript-eslint/no-explicit-any': 'warn',
   },
-  ignorePatterns: ['dist/**', 'node_modules/**'],
+  ignorePatterns: ['dist/**', 'node_modules/**', '.eslintrc.cjs'],
 };
 
 

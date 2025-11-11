@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "gulpfile.cjs",
+    ".eslintrc.cjs"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
+}
+
