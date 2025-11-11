@@ -38,5 +38,5 @@ coverage/
 #.cursor-settings.json
 #.cursorcache
 #.cursorconfig
-#.cursorignore
-#.cursorrules
+.cursorignore
+.cursorrules
