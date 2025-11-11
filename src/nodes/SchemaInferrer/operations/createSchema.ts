@@ -4,11 +4,21 @@ import { quicktype, InputData, jsonInputForTargetLanguage } from 'quicktype-core
 
 interface JsonSchema {
   required?: string[];
+  type?: string | string[];
   properties?: Record<string, unknown>;
+  items?: unknown;
   definitions?: Record<string, JsonSchema>;
   $ref?: string;
   [key: string]: unknown;
 }
+
+type JsonType = 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'null';
+
+type OverrideRule = {
+  fieldName: string;
+  matchType: 'exact' | 'partial';
+  newType: JsonType;
+};
 
 function matchesField(
   requiredField: string,
@@ -164,7 +174,7 @@ export async function createSchema(
     }
     const { lines } = await quicktype(quicktypeOptions);
     const schemaString = lines.join('\n');
-    const schema = JSON.parse(schemaString) as JsonSchema;
+    let schema = JSON.parse(schemaString) as JsonSchema;
 
     const minimiseOutput = context.getNodeParameter('minimiseOutput', 0, true) as boolean;
     const includeDefinitions = context.getNodeParameter('includeDefinitions', 0, false) as boolean;
@@ -195,8 +205,212 @@ export async function createSchema(
       );
     }
 
-    if (minimiseOutput && !includeDefinitions) {
-      if (schema.definitions) {
+    // --- Override rules: parse and apply ---
+    const overrideOptionsRaw = context.getNodeParameter('overrideOptions', 0, {}) as {
+      overrideRulesText?: string;
+      overrideRules?: { rule?: Array<Record<string, unknown>> };
+    };
+
+    const normaliseType = (t: string | undefined): JsonType | undefined => {
+      if (!t) return undefined;
+      const lower = t.toLowerCase().trim();
+      const map: Record<string, JsonType> = {
+        string: 'string',
+        str: 'string',
+        number: 'number',
+        float: 'number',
+        double: 'number',
+        integer: 'integer',
+        int: 'integer',
+        boolean: 'boolean',
+        bool: 'boolean',
+        object: 'object',
+        obj: 'object',
+        array: 'array',
+        arr: 'array',
+        null: 'null',
+      };
+      return map[lower];
+    };
+
+    const parseOverrideRules = (text: string | undefined): OverrideRule[] => {
+      if (!text) return [];
+      const rules: OverrideRule[] = [];
+      const parts = text
+        .split(',')
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
+      for (const token of parts) {
+        // Format: fieldName->newType (exact) or *fieldName*->newType (partial)
+        const arrowIdx = token.indexOf('->');
+        if (arrowIdx === -1) continue;
+        
+        const leftPart = token.slice(0, arrowIdx).trim();
+        const rightPart = token.slice(arrowIdx + 2).trim();
+        
+        const newType = normaliseType(rightPart);
+        if (!newType) continue;
+        
+        let fieldName = leftPart;
+        let matchType: 'exact' | 'partial' = 'exact';
+        
+        // Check if field name is surrounded by asterisks for partial matching
+        if (leftPart.startsWith('*') && leftPart.endsWith('*') && leftPart.length > 2) {
+          fieldName = leftPart.slice(1, -1);
+          matchType = 'partial';
+        }
+        
+        if (!fieldName) continue;
+        
+        rules.push({
+          fieldName,
+          matchType,
+          newType,
+        });
+      }
+      return rules;
+    };
+
+    const advancedRulesFromParams = (): OverrideRule[] => {
+      const out: OverrideRule[] = [];
+      const coll = overrideOptionsRaw.overrideRules;
+      const rows = coll && Array.isArray(coll.rule) ? coll.rule : [];
+      for (const row of rows) {
+        const fieldName = (row.fieldName as string | undefined)?.trim() || '';
+        const matchType = (row.matchType as 'exact' | 'partial' | undefined) || 'exact';
+        const newType = normaliseType(row.newType as string | undefined);
+        
+        if (!fieldName || !newType) continue;
+        
+        out.push({
+          fieldName,
+          matchType,
+          newType,
+        });
+      }
+      return out;
+    };
+
+    const getNodeTypes = (node: unknown): JsonType[] => {
+      if (!node || typeof node !== 'object') return [];
+      const t = (node as Record<string, unknown>).type;
+      if (typeof t === 'string') return [t as JsonType];
+      if (Array.isArray(t)) {
+        return (t as unknown[])
+          .filter((x): x is string => typeof x === 'string')
+          .map((x) => x as JsonType);
+      }
+      return [];
+    };
+
+    const setNodeType = (node: unknown, newType: JsonType): void => {
+      if (!node || typeof node !== 'object') return;
+      (node as Record<string, unknown>).type = newType;
+    };
+
+    const applyOverrides = (root: JsonSchema, rules: OverrideRule[]): void => {
+      if (rules.length === 0) return;
+      
+      const isObjectNode = (n: unknown): n is JsonSchema => {
+        if (!n || typeof n !== 'object') return false;
+        const ts = getNodeTypes(n);
+        return ts.includes('object') || (!!(n as JsonSchema).properties && !ts.includes('array'));
+      };
+      const isArrayNode = (n: unknown): boolean => {
+        const ts = getNodeTypes(n);
+        return ts.includes('array') || !!(n as JsonSchema).items;
+      };
+
+      const matchesFieldName = (fieldName: string, ruleName: string, matchType: 'exact' | 'partial'): boolean => {
+        if (matchType === 'exact') {
+          return fieldName === ruleName;
+        }
+        // Partial matching
+        return fieldName.includes(ruleName);
+      };
+
+      const visit = (node: unknown, fieldName: string): void => {
+        if (!node || typeof node !== 'object') return;
+        
+        // Check if current field name matches any rule
+        if (fieldName) {
+          for (const rule of rules) {
+            if (matchesFieldName(fieldName, rule.fieldName, rule.matchType)) {
+              setNodeType(node, rule.newType);
+              break; // Apply first matching rule only
+            }
+          }
+        }
+
+        // Recurse into properties
+        if (isObjectNode(node)) {
+          const props = node.properties || {};
+          for (const [key, child] of Object.entries(props)) {
+            visit(child, key);
+          }
+        }
+        
+        // Recurse into array items
+        if (isArrayNode(node)) {
+          const items = (node as JsonSchema).items;
+          if (items) {
+            visit(items, '');
+          }
+        }
+      };
+
+      // Start from root
+      visit(root, '');
+    };
+
+    const textRules = parseOverrideRules(overrideOptionsRaw.overrideRulesText ?? '');
+    const advRules = advancedRulesFromParams();
+    const combinedRules: OverrideRule[] = [...textRules, ...advRules];
+    if (combinedRules.length > 0) {
+      applyOverrides(schema, combinedRules);
+    }
+
+    // When minimising, ensure we don't remove definitions that are still referenced.
+    const hasAnyRef = (node: unknown): boolean => {
+      if (node === null || typeof node !== 'object') return false;
+      const obj = node as Record<string, unknown>;
+      if (typeof obj.$ref === 'string' && obj.$ref.startsWith('#/definitions/')) return true;
+      for (const v of Object.values(obj)) {
+        if (Array.isArray(v)) {
+          for (const el of v) {
+            if (hasAnyRef(el)) return true;
+          }
+        } else if (hasAnyRef(v)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    if (minimiseOutput) {
+      // Inline the root definition if the top-level schema is just a $ref
+      if (
+        typeof schema.$ref === 'string' &&
+        schema.$ref.startsWith('#/definitions/') &&
+        schema.definitions
+      ) {
+        const defName = schema.$ref.replace('#/definitions/', '');
+        const rootDef = schema.definitions[defName];
+        if (rootDef) {
+          const keepDefinitions = includeDefinitions || hasAnyRef(rootDef);
+          const inlined: JsonSchema = {
+            $schema: (schema as Record<string, unknown>)['$schema'] as string | undefined,
+            ...rootDef,
+          };
+          if (keepDefinitions) {
+            inlined.definitions = schema.definitions;
+          }
+          schema = inlined;
+        }
+      }
+
+      // Only drop definitions if nothing references them anymore
+      if (!includeDefinitions && schema.definitions && !hasAnyRef(schema)) {
         delete schema.definitions;
       }
     }

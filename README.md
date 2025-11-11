@@ -100,6 +100,25 @@ These options keep upstream node previews responsive even in longer workflows.
 
 Note: The schema merges all input items, so properties that appear in all items will be marked as required, while optional properties (like `active` in the example above) may be marked as optional depending on their presence across samples.
 
+### Override Rules (Create Schema)
+
+Use Override Options to remap inferred JSON Schema field types.
+
+- Matching precedence: first matching rule wins (top-down).
+- Paths: use dot notation like `parent.child.leaf`. Arrays are index-agnostic; rules traverse into `items` automatically.
+- Unions: if a field has multiple types, matching on any contains-type applies and sets a single `type`.
+
+Quick input (comma-separated):
+
+```
+user.address.postcode:string->number, string->string
+```
+
+Advanced rules:
+- Mode: Full Path + Type or Type Only
+- Field Path (for Full Path + Type)
+- Current Type and New Type: one of string, number, integer, boolean, object, array, null
+
 ### Generate SQL DDL
 
 The "Generate SQL DDL" operation converts a JSON schema to SQL CREATE TABLE statements.
@@ -129,6 +148,9 @@ The "Generate SQL DDL" operation converts a JSON schema to SQL CREATE TABLE stat
 - Required Field Options:
   - Override Inferred Required: false (default; preserves inferred required)
   - Required Fields: optional comma-separated names to add as required
+- Override Options (optional):
+  - Quick Rules: comma-separated rules to override schema field types before SQL generation
+  - Advanced Rules: structured rule builder for more complex overrides
 - Debug (optional): enable via the `Schema Inferrer Configuration` credentials
 
 **Output**:
@@ -142,6 +164,48 @@ The "Generate SQL DDL" operation converts a JSON schema to SQL CREATE TABLE stat
 ```
 
 The generated SQL can then be executed against your database or saved for later use.
+
+#### Override Rules for SQL DDL
+
+Override rules let you modify schema field types before SQL generation, giving you precise control over the final SQL column types.
+
+**Quick Rules Syntax**:
+- Full path + type: `path.to.field:type->newType`
+- Type-only: `type->newType`
+- Multiple rules: comma-separated
+
+**Examples**:
+```
+user.address.postcode:string->integer
+createdAt:string->string
+string->number
+id:string->integer, age:string->integer
+```
+
+**Advanced Rules Builder**: provides a structured UI for building rules with:
+- Mode: Full Path + Type or Type Only
+- Field Path: dot-notation path (e.g., `user.address.postcode`)
+- Current Type: the type to match
+- New Type: the type to replace with
+
+**Supported Types**: 
+- Basic JSON types: string, number, integer, boolean, object, array, null
+- SQL-specific types: uuid, date-time, date, time, json, jsonb, text
+
+**Behaviour**:
+- First matching rule wins (top-down)
+- Dot-paths follow object nesting (e.g., `parent.child.field`)
+- Array items are addressed via their container path
+- Type aliases are normalised (e.g., `int` → `integer`, `bool` → `boolean`)
+
+**Common Use Cases**:
+- Convert string IDs to integers: `id:string->integer`
+- Force numeric postcodes: `address.postcode:string->integer`
+- Convert date strings to proper date-time: `createdAt:string->date-time`
+- Use UUID type for ID fields: `id:string->uuid`
+- Force long text fields: `description:string->text`
+- Store structured data as JSON: `metadata:object->jsonb`
+- Standardise date fields: `date->date-time`
 
 #### Supported Database Types
 

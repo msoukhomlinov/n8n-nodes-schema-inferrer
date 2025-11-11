@@ -223,33 +223,64 @@ Located in `/.cursor-rules`.
 - **Quicktype nested definitions**: Quicktype generates JSON schemas with a `definitions` section where each definition can have its own `required` array. When processing schema properties (e.g., to clear or set required fields), you must recursively process all definitions, not just the top-level schema. The schema structure uses `$ref` to reference definitions (e.g., `"$ref": "#/definitions/Attributes"`).
 - **Knex.js SQL generation**: When using Knex.js to generate SQL DDL without a database connection, you still need to provide a dummy connection config. The `.toSQL()` method returns an array of query objects `[{ sql: string, bindings: [] }]`, not a single string. Extract the SQL from the first array element. Always call `knexInstance.destroy()` after generating SQL to clean up resources. Use database-specific column types: `jsonb()` for PostgreSQL, `json()` for MySQL, `text()` for SQLite when handling JSON data.
 - **JSON Schema property detection**: When processing JSON schemas for SQL DDL generation, schemas may have properties at different locations: (1) directly in `item.json.schema.properties`, (2) directly in `item.json.properties` (if the whole object is the schema), or (3) in `schema.definitions[definitionName].properties`. Always check all these locations using a helper function that searches root properties first, then definitions. Use the schema that contains the properties for subsequent processing.
+- **Field-name-based override rules**: For type override systems, field-name-based matching (with exact/partial options) is more intuitive and flexible than current-type to new-type conversion. Users can specify field names (like "id", "email", "postcode") with exact or partial matching (using asterisks like `*created*` for partial). This approach matches on the field name only, not the combination of field name and current type, making rules simpler and more reusable across different schemas.
 
 # Scratchpad
 
-## Current Task: Add SQL DDL Generation Operation
+## Current Task: Refactor Advanced Rules to Field-Name-Based System
 
 ### Task Overview
-Adding a new operation to generate SQL CREATE TABLE statements from JSON schemas using Knex.js. This will support multiple database types (PostgreSQL, MySQL, SQLite3, MSSQL, Oracle, CockroachDB).
+Refactoring the Advanced Rules system for both operations (Create Schema and Generate SQL DDL) to use field-name-based matching instead of current-type to new-type conversion. The new system should:
+- Use field name matching (partial or exact)
+- Allow specifying a new type for matched fields
+- Support multiple rules (fixedCollection with multipleValues: true)
+- Default to exact matching
 
-### Implementation Progress
-[X] Add knex dependency
-[X] Update node description with new operation and UI fields
-[X] Add operation case in execute method
-[X] Implement generateSqlDdl() function
-[X] Implement type mapping function
-[X] Implement schema processor function
-[X] Implement SQL generation function
-[X] Add validation and error handling
+### Implementation Plan
+[X] Update overrideOptions.ts (for Create Schema operation)
+  - Remove Mode dropdown
+  - Add Field Name input
+  - Add Match Type (Exact/Partial boolean, default: exact)
+  - Remove Current Type dropdown
+  - Keep New Type dropdown
+  - Simplify to just: fieldName, matchType (exact/partial), newType
 
-### Implementation Complete ✅
-All tasks completed successfully. The SQL DDL generation operation has been fully implemented with:
-- Knex.js integration for SQL generation
-- Support for multiple database types (PostgreSQL, MySQL, MariaDB, SQLite3, MSSQL, Oracle, CockroachDB)
-- JSON Schema type mapping to SQL column types
-- Primary key detection (auto-detect "id" or user-specified)
-- Nullable/required field handling
-- Nested object/array handling (converted to JSON/JSONB columns)
-- Table and column name validation and sanitization
-- Comprehensive error handling with NodeOperationError
+[X] Update sqlOverrideOptions.ts (for Generate SQL DDL operation)
+  - Same structure as overrideOptions.ts
+  - Use SQL-specific types in New Type dropdown
 
-**ESM Compatibility Issue Resolved**: Switched from ESM to CommonJS to fix Windows/Node.js 22 compatibility issues with n8n-workflow package. n8n now starts successfully with the new feature.
+[X] Update createSchema.ts
+  - Update OverrideRule interface to new structure
+  - Update rule parsing logic for new field-name-based matching
+  - Update applyOverrides function to match field names (exact/partial)
+
+[X] Update generateSqlDdl.ts
+  - Update OverrideRule interface to new structure
+  - Update rule parsing logic for new field-name-based matching
+  - Update applyOverrides function to match field names (exact/partial)
+
+[X] Update Quick Rules text format
+  - New format: fieldName->newType (exact) or *fieldName*->newType (partial)
+  - Update placeholder text and descriptions
+
+### Progress
+✅ **Implementation Complete!**
+
+All changes have been successfully implemented and tested:
+- UI fields updated to use field-name-based matching
+- Quick Rules format changed to: `fieldName->newType` (exact) or `*fieldName*->newType` (partial)
+- Advanced Rules simplified to: Field Name, Match Type (Exact/Partial), New Type
+- Both operations (Create Schema and Generate SQL DDL) updated
+- All linting errors resolved
+- Build successful
+
+### Key Changes Made
+1. **overrideOptions.ts**: Simplified UI to field name + match type + new type
+2. **sqlOverrideOptions.ts**: Same structure with SQL-specific types
+3. **createSchema.ts**: Field-name-based matching logic with exact/partial support
+4. **generateSqlDdl.ts**: Field-name-based matching logic with exact/partial support
+5. Quick Rules now use asterisks (*) for partial matching
+
+### Examples
+- Exact match: `id->uuid` or `postcode->number`
+- Partial match: `*created*->date-time` or `*email*->string`

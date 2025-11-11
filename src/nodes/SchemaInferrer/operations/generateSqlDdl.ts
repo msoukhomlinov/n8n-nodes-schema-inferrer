@@ -13,8 +13,172 @@ interface JsonSchema {
   [key: string]: unknown;
 }
 
+type JsonType = 
+  | 'string' 
+  | 'number' 
+  | 'integer' 
+  | 'boolean' 
+  | 'object' 
+  | 'array' 
+  | 'null'
+  | 'uuid'
+  | 'date-time'
+  | 'date'
+  | 'time'
+  | 'json'
+  | 'jsonb'
+  | 'text';
+
+interface OverrideRule {
+  fieldName: string;
+  matchType: 'exact' | 'partial';
+  newType: JsonType;
+}
+
 function sanitizeColumnName(name: string): string {
   return name.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+}
+
+function normaliseType(t: string): JsonType | null {
+  const lower = t.trim().toLowerCase();
+  const map: Record<string, JsonType> = {
+    string: 'string',
+    str: 'string',
+    number: 'number',
+    num: 'number',
+    float: 'number',
+    double: 'number',
+    decimal: 'number',
+    integer: 'integer',
+    int: 'integer',
+    boolean: 'boolean',
+    bool: 'boolean',
+    object: 'object',
+    obj: 'object',
+    array: 'array',
+    arr: 'array',
+    null: 'null',
+    uuid: 'uuid',
+    'date-time': 'date-time',
+    datetime: 'date-time',
+    timestamp: 'date-time',
+    date: 'date',
+    time: 'time',
+    json: 'json',
+    jsonb: 'jsonb',
+    text: 'text',
+  };
+  return map[lower] || null;
+}
+
+function parseOverrideRules(text: string): OverrideRule[] {
+  if (!text || !text.trim()) return [];
+  const rules: OverrideRule[] = [];
+  const tokens = text.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
+  for (const token of tokens) {
+    // Format: fieldName->newType (exact) or *fieldName*->newType (partial)
+    const arrowIdx = token.indexOf('->');
+    if (arrowIdx === -1) continue;
+    
+    const leftPart = token.slice(0, arrowIdx).trim();
+    const rightPart = token.slice(arrowIdx + 2).trim();
+    
+    const newType = normaliseType(rightPart);
+    if (!newType) continue;
+    
+    let fieldName = leftPart;
+    let matchType: 'exact' | 'partial' = 'exact';
+    
+    // Check if field name is surrounded by asterisks for partial matching
+    if (leftPart.startsWith('*') && leftPart.endsWith('*') && leftPart.length > 2) {
+      fieldName = leftPart.slice(1, -1);
+      matchType = 'partial';
+    }
+    
+    if (!fieldName) continue;
+    
+    rules.push({
+      fieldName,
+      matchType,
+      newType,
+    });
+  }
+  return rules;
+}
+
+function walkSchema(
+  schema: JsonSchema,
+  onField: (path: string, node: Record<string, unknown>) => void,
+  currentPath = '',
+): void {
+  if (schema.properties) {
+    for (const [key, value] of Object.entries(schema.properties)) {
+      const dotPath = currentPath ? `${currentPath}.${key}` : key;
+      const propNode = value as Record<string, unknown>;
+      onField(dotPath, propNode);
+      const propType = propNode.type;
+      if (propType === 'object' && propNode.properties) {
+        walkSchema(propNode as JsonSchema, onField, dotPath);
+      } else if (propType === 'array' && propNode.items) {
+        const items = propNode.items as Record<string, unknown>;
+        if (items.type === 'object' && items.properties) {
+          walkSchema(items as JsonSchema, onField, dotPath);
+        }
+      }
+    }
+  }
+}
+
+function applyOverrides(schema: JsonSchema, rules: OverrideRule[]): void {
+  if (rules.length === 0) return;
+  const appliedFields = new Set<string>();
+  const formatTypes: JsonType[] = ['uuid', 'date-time', 'date', 'time'];
+  const sqlSpecificTypes: JsonType[] = ['json', 'jsonb', 'text'];
+  
+  const matchesFieldName = (fieldName: string, ruleName: string, matchType: 'exact' | 'partial'): boolean => {
+    if (matchType === 'exact') {
+      return fieldName === ruleName;
+    }
+    // Partial matching
+    return fieldName.includes(ruleName);
+  };
+  
+  walkSchema(schema, (path, node) => {
+    if (appliedFields.has(path)) return;
+    
+    // Extract just the field name (last part of path) for matching
+    const fieldName = path.split('.').pop() || path;
+    
+    for (const rule of rules) {
+      if (matchesFieldName(fieldName, rule.fieldName, rule.matchType)) {
+        // Clear existing format if we're changing the type
+        if (node.format) {
+          delete node.format;
+        }
+        
+        // Set format for format-based types
+        if (formatTypes.includes(rule.newType)) {
+          node.type = 'string';
+          node.format = rule.newType;
+        } else if (sqlSpecificTypes.includes(rule.newType)) {
+          // For SQL-specific types like json/jsonb/text, set the base type
+          if (rule.newType === 'json' || rule.newType === 'jsonb') {
+            node.type = 'object';
+            node.format = rule.newType;
+          } else if (rule.newType === 'text') {
+            node.type = 'string';
+            node.format = 'text';
+          }
+        } else {
+          // Standard JSON Schema types
+          node.type = rule.newType;
+        }
+        
+        appliedFields.add(path);
+        break; // Apply first matching rule only
+      }
+    }
+  });
 }
 
 function validateTableName(tableName: string): boolean {
@@ -71,6 +235,36 @@ function mapJsonSchemaTypeToKnex(
         return table.date(columnName);
       case 'time':
         return table.time(columnName);
+      case 'text':
+        return table.text(columnName);
+      case 'json':
+        if (databaseType === 'mysql2') {
+          return table.json(columnName);
+        }
+        if (databaseType === 'pg' || databaseType === 'cockroachdb') {
+          return table.jsonb(columnName);
+        }
+        if (databaseType === 'mssql') {
+          return table.specificType(columnName, 'nvarchar(max)');
+        }
+        if (databaseType === 'oracledb') {
+          return table.specificType(columnName, 'clob');
+        }
+        return table.text(columnName);
+      case 'jsonb':
+        if (databaseType === 'pg' || databaseType === 'cockroachdb') {
+          return table.jsonb(columnName);
+        }
+        if (databaseType === 'mysql2') {
+          return table.json(columnName);
+        }
+        if (databaseType === 'mssql') {
+          return table.specificType(columnName, 'nvarchar(max)');
+        }
+        if (databaseType === 'oracledb') {
+          return table.specificType(columnName, 'clob');
+        }
+        return table.text(columnName);
       case 'email':
       case 'uri':
       case 'hostname':
@@ -349,6 +543,28 @@ export function generateSqlDdl(
       }
     }
   }
+
+  const sqlOverrideOptionsRaw = context.getNodeParameter('sqlOverrideOptions', 0, {}) as {
+    overrideRulesText?: string;
+    overrideRules?: { rule?: Array<{ fieldName: string; matchType: 'exact' | 'partial'; newType: string }> };
+  };
+  const overrideRulesText = sqlOverrideOptionsRaw.overrideRulesText ?? '';
+  const parsedRules = parseOverrideRules(overrideRulesText);
+  const advancedRulesRaw = sqlOverrideOptionsRaw.overrideRules?.rule ?? [];
+  const advancedRules: OverrideRule[] = advancedRulesRaw
+    .filter((r) => {
+      const fieldName = r.fieldName?.trim();
+      const newType = normaliseType(r.newType);
+      return fieldName && fieldName.length > 0 && newType !== null;
+    })
+    .map((r) => ({
+      fieldName: r.fieldName.trim(),
+      matchType: r.matchType || 'exact',
+      newType: normaliseType(r.newType)!,
+    }));
+  const combinedRules = [...parsedRules, ...advancedRules];
+  applyOverrides(schema, combinedRules);
+
   try {
     const sql = convertSchemaToSql(schema, tableName, databaseType, primaryKeyFields);
     const capDebug = (value: unknown): unknown => {
