@@ -58,6 +58,9 @@
   "n8n": {
     "nodes": [
       "dist/nodes/SchemaInferrer/SchemaInferrer.node.js"
+    ],
+    "credentials": [
+      "dist/credentials/SchemaInferrerConfig.credentials.js"
     ]
   }
 }

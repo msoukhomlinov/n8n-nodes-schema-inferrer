@@ -12,6 +12,8 @@ An n8n community node for inferring JSON schemas from sample data using `quickty
   - Intelligent type mapping from JSON Schema to SQL column types
   - Automatic primary key detection or manual specification
   - Handles nullable/required fields and nested objects/arrays
+  - CockroachDB uses the PostgreSQL dialect under the hood for SQL generation
+  - Compact outputs to avoid large preview prompts in n8n
 
 ## Installation
 
@@ -83,6 +85,19 @@ Item 2:
 }
 ```
 
+## Options to control output size
+
+To prevent n8n’s “Display data?” modal when chaining multiple nodes, the node includes:
+
+- Minimise Output Size (default: on)
+  - Trims non-essential parts of the schema for previews.
+- Include Definitions (default: off)
+  - When disabled, omits the `definitions` block to keep results small.
+- Debug (from credentials, default: off)
+  - When enabled, debug payloads are size-capped (~10KB) to avoid large items.
+
+These options keep upstream node previews responsive even in longer workflows.
+
 Note: The schema merges all input items, so properties that appear in all items will be marked as required, while optional properties (like `active` in the example above) may be marked as optional depending on their presence across samples.
 
 ### Generate SQL DDL
@@ -111,6 +126,10 @@ The "Generate SQL DDL" operation converts a JSON schema to SQL CREATE TABLE stat
 - Database Type: PostgreSQL
 - Table Name: users
 - Auto-detect Primary Key: true (will detect "id" field)
+- Required Field Options:
+  - Override Inferred Required: false (default; preserves inferred required)
+  - Required Fields: optional comma-separated names to add as required
+- Debug (optional): enable via the `Schema Inferrer Configuration` credentials
 
 **Output**:
 
@@ -131,7 +150,7 @@ The generated SQL can then be executed against your database or saved for later 
 - **SQLite3**: Uses `integer` auto-increment, `text` for JSON data
 - **MSSQL**: Uses `int identity`, `nvarchar(max)` for JSON data
 - **Oracle**: Uses `number`, `clob` for JSON data
-- **CockroachDB**: PostgreSQL-compatible syntax
+- **CockroachDB**: PostgreSQL-compatible syntax (generated using Knex `pg` client)
 
 #### Type Mapping
 
@@ -145,6 +164,12 @@ The generated SQL can then be executed against your database or saved for later 
 | string (format: uuid) | uuid | Native UUID type where supported |
 | string (format: date-time) | timestamp | Native timestamp type |
 | string (format: email) | varchar(255) | Standard string with validation |
+
+### Debugging
+
+To surface additional diagnostic info in the node output, create a credential of type `Schema Inferrer Configuration` and enable “Enable Debug Mode”. When enabled:
+- Create Schema: output includes `debug` with quicktype options and required-field handling summary.
+- Generate SQL DDL: output includes `debug` with detected PK fields and the effective Knex client used (e.g., `pg` for CockroachDB).
 
 ## License
 

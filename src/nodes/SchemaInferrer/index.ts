@@ -1,2 +1,2 @@
-export { schemaInferrerNodeProperties } from './schema-inferrer.description.js';
+export { schemaInferrerNodeProperties } from './descriptions/schema-inferrer.description.js';
 
