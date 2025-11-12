@@ -3,6 +3,7 @@ import { NodeOperationError } from 'n8n-workflow';
 import { schemaInferrerNodeProperties } from './index.js';
 import { createSchema } from './operations/createSchema.js';
 import { generateSqlDdl } from './operations/generateSqlDdl.js';
+import { prepareForDatabase } from './operations/prepareForDatabase.js';
 
 export class SchemaInferrer implements INodeType {
   description: INodeTypeDescription = {
@@ -40,6 +41,8 @@ export class SchemaInferrer implements INodeType {
         return createSchema(this, enableDebug);
       case 'generateSqlDdl':
         return generateSqlDdl(this, enableDebug);
+      case 'prepareForDatabase':
+        return prepareForDatabase(this, enableDebug);
       default:
         throw new NodeOperationError(this.getNode(), `Unknown operation: ${operation}`);
     }

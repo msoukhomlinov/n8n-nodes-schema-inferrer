@@ -1,6 +1,11 @@
 import type { INodeProperties } from 'n8n-workflow';
 import { operationProperty } from './operation.js';
 import { createNotice, sqlDdlNotice } from './notices.js';
+import {
+  prepareForDatabaseNotice,
+  prepareForDatabaseSchema,
+  prepareForDatabaseOptions,
+} from './prepareForDatabaseOptions.js';
 import { requiredFieldOptions } from './requiredFieldOptions.js';
 import { inferenceOptions } from './inferenceOptions.js';
 import { overrideOptions } from './overrideOptions.js';
@@ -26,6 +31,9 @@ export const schemaInferrerNodeProperties = [
   primaryKeyOptions,
   sqlOverrideOptions,
   namingOptionsSqlDdl,
+  prepareForDatabaseNotice,
+  prepareForDatabaseSchema,
+  prepareForDatabaseOptions,
 ] satisfies INodeProperties[];
 
 

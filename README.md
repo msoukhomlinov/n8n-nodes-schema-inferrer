@@ -14,6 +14,10 @@ An n8n community node for inferring JSON schemas from sample data using `quickty
   - Handles nullable/required fields and nested objects/arrays
   - CockroachDB uses the PostgreSQL dialect under the hood for SQL generation
   - Compact outputs to avoid large preview prompts in n8n
+- **Prepare for Database**: Serialize nested objects/arrays to JSON strings for PostgreSQL JSONB/JSON columns
+  - Schema-based field identification
+  - Prevents double-stringification
+  - Optional pretty printing
 
 ## Installation
 
@@ -281,11 +285,70 @@ id:string->integer, age:string->integer
 | string (format: date-time) | timestamp | Native timestamp type |
 | string (format: email) | varchar(255) | Standard string with validation |
 
+### Prepare for Database
+
+The "Prepare for Database" operation serializes nested objects and arrays to JSON strings for database insertion.
+
+**Use Case:** When inserting data into PostgreSQL JSONB/JSON columns using n8n's PostgreSQL node with auto-mapping, nested objects need to be converted to JSON strings.
+
+**Required Input:**
+- Schema (from Create Schema operation)
+- Data items to transform
+
+**Example Workflow:**
+1. Create Schema → generates schema from sample data
+2. Generate SQL DDL → creates table definition
+3. PostgreSQL Execute → creates table
+4. HTTP Request → fetches data to insert
+5. Prepare for Database → serializes nested fields (references schema from step 1)
+6. PostgreSQL Insert → inserts with auto-mapping
+
+**Options:**
+- **Skip Already Stringified** (default: true): Prevents double-stringification of fields that are already JSON strings
+- **Pretty Print** (default: false): Formats JSON with indentation (2 spaces) for readability
+- **Strict Mode** (default: false): Throws error on invalid schema instead of passing data through
+
+**Example:**
+
+Input Data:
+```json
+{
+  "id": 1,
+  "name": "Test Customer",
+  "storageRegions": [
+    {"name": "ap-southeast-2", "storageProvider": 1}
+  ]
+}
+```
+
+Schema (from Create Schema):
+```json
+{
+  "properties": {
+    "id": {"type": "integer"},
+    "name": {"type": "string"},
+    "storageRegions": {"type": "array"}
+  }
+}
+```
+
+Output (after Prepare for Database):
+```json
+{
+  "id": 1,
+  "name": "Test Customer",
+  "storageRegions": "[{\"name\":\"ap-southeast-2\",\"storageProvider\":1}]"
+}
+```
+
+Now ready for PostgreSQL insertion with auto-mapping.
+
 ### Debugging
 
-To surface additional diagnostic info in the node output, create a credential of type `Schema Inferrer Configuration` and enable “Enable Debug Mode”. When enabled:
+To surface additional diagnostic info in the node output, create a credential of type `Schema Inferrer Configuration` and enable "Enable Debug Mode". When enabled:
 - Create Schema: output includes `debug` with quicktype options and required-field handling summary.
 - Generate SQL DDL: output includes `debug` with detected PK fields and the effective Knex client used (e.g., `pg` for CockroachDB).
+- Prepare for Database: logs when no object/array fields are found in schema.
 
 ## License
 

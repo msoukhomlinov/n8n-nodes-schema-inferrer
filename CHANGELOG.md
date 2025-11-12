@@ -2,6 +2,22 @@
 
 All notable changes to n8n-nodes-schema-inferrer will be documented in this file.
 
+## [0.5.0] - 2025-11-12
+
+### Added
+- **Prepare for Database** operation for PostgreSQL JSONB/JSON compatibility
+  - Serializes nested objects/arrays to JSON strings based on schema
+  - Required for n8n PostgreSQL node auto-mapping with nested data
+  - Options: Skip Already Stringified, Pretty Print, Strict Mode
+
+### Fixed
+- Prepare for Database now correctly resolves `$ref` references in schemas
+  - Handles root-level `$ref` (e.g., `"$ref": "#/definitions/Root"`)
+  - Resolves field-level `$ref` references
+  - Properly detects array and object fields for stringification
+- Added defensive handling for array-wrapped schema inputs
+- Enhanced debug logging for schema structure and field detection
+
 ## [0.4.1] - 2025-11-12
 
 ### Fixed

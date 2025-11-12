@@ -16,6 +16,11 @@ export const operationProperty: INodeProperties = {
       value: 'generateSqlDdl',
       description: 'Generate SQL CREATE TABLE statement from a JSON schema',
     },
+    {
+      name: 'Prepare for Database',
+      value: 'prepareForDatabase',
+      description: 'Serialize nested objects/arrays to JSON strings for database insertion',
+    },
   ],
   default: 'create',
 };
