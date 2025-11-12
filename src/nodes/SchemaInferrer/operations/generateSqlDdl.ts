@@ -445,6 +445,7 @@ function schemaAllowsNull(property: Record<string, unknown>): boolean {
 
 function processSchemaProperties(
   schema: JsonSchema,
+  rootSchema: JsonSchema,
   table: knex.Knex.CreateTableBuilder,
   databaseType: string,
   primaryKeyFields: string[],
@@ -455,7 +456,7 @@ function processSchemaProperties(
     throw new Error('Schema has no properties to convert');
   }
   const requiredFields = schema.required || [];
-  const properties = schema.properties as Record<string, Record<string, unknown>>;
+  const properties = schema.properties as Record<string, JsonSchema>;
   
   // Sanitize primary key fields for comparison
   const sanitizedPrimaryKeyFields = primaryKeyFields.map((field) =>
@@ -463,17 +464,31 @@ function processSchemaProperties(
   );
   
   for (const [propertyName, propertyDef] of Object.entries(properties)) {
+    // Resolve $ref references in the property definition
+    let resolvedProperty = dereferenceSchema(propertyDef, rootSchema);
+    
+    // Also resolve $ref in array items if present
+    if (resolvedProperty.items && typeof resolvedProperty.items === 'object') {
+      const itemsSchema = resolvedProperty.items as JsonSchema;
+      if (isRefSchema(itemsSchema)) {
+        resolvedProperty = {
+          ...resolvedProperty,
+          items: dereferenceSchema(itemsSchema, rootSchema),
+        };
+      }
+    }
+    
     const sanitizedName = sanitizeColumnName(propertyName, lowercaseAllFields, quoteIdentifiers);
     // Compare sanitized names for primary key matching
     const isPrimaryKey = sanitizedPrimaryKeyFields.includes(sanitizedName);
     const listedRequired = requiredFields.includes(propertyName);
-    const allowsNull = schemaAllowsNull(propertyDef);
+    const allowsNull = schemaAllowsNull(resolvedProperty);
     const isRequired = listedRequired && !allowsNull;
-    const propType = (propertyDef as { type?: unknown }).type;
+    const propType = resolvedProperty.type;
     if (isPrimaryKey && propType === 'integer') {
       table.increments(sanitizedName).primary();
     } else {
-      const column = mapJsonSchemaTypeToKnex(propertyDef, sanitizedName, table, databaseType);
+      const column = mapJsonSchemaTypeToKnex(resolvedProperty, sanitizedName, table, databaseType);
       if (isPrimaryKey) {
         column.primary();
       }
@@ -517,6 +532,7 @@ function getWrapIdentifier(
 
 function convertSchemaToSql(
   schema: JsonSchema,
+  rootSchema: JsonSchema,
   tableName: string,
   databaseType: string,
   primaryKeyFields: string[],
@@ -546,6 +562,7 @@ function convertSchemaToSql(
     const builder = knexInstance.schema.createTable(sanitizedTableName, (table) => {
       processSchemaProperties(
         schema,
+        rootSchema,
         table,
         databaseType,
         primaryKeyFields,
@@ -671,14 +688,16 @@ export function generateSqlDdl(
     );
   }
   const item = items[0];
-  let schema = (item.json.schema as JsonSchema | undefined) || (item.json as JsonSchema | undefined);
-  if (!schema) {
+  const originalSchema = (item.json.schema as JsonSchema | undefined) || (item.json as JsonSchema | undefined);
+  if (!originalSchema) {
     throw new NodeOperationError(
       context.getNode(),
       'Input must contain a "schema" property or be a valid JSON Schema object.',
     );
   }
-  const effectiveRoot = getEffectiveRootObjectSchema(schema);
+  // Keep reference to original schema with definitions for $ref resolution
+  const rootSchemaWithDefinitions: JsonSchema = originalSchema;
+  const effectiveRoot = getEffectiveRootObjectSchema(originalSchema);
   let propertiesInfo = findSchemaProperties(effectiveRoot);
   if (!propertiesInfo) {
     throw new NodeOperationError(
@@ -686,7 +705,12 @@ export function generateSqlDdl(
       'Schema must have at least one property to generate SQL. Check that the schema has a "properties" object at the root level or in "definitions".',
     );
   }
-  schema = propertiesInfo.sourceSchema;
+  let schema = propertiesInfo.sourceSchema;
+  
+  // Ensure the schema has definitions from root for $ref resolution
+  if (!schema.definitions && rootSchemaWithDefinitions.definitions) {
+    schema = { ...schema, definitions: rootSchemaWithDefinitions.definitions };
+  }
   
   // Get naming options
   const namingOptionsRaw = context.getNodeParameter('namingOptions', 0, {}) as {
@@ -704,6 +728,10 @@ export function generateSqlDdl(
     if (updatedPropertiesInfo) {
       propertiesInfo = updatedPropertiesInfo;
       schema = propertiesInfo.sourceSchema;
+      // Ensure definitions are preserved after re-finding
+      if (!schema.definitions && rootSchemaWithDefinitions.definitions) {
+        schema = { ...schema, definitions: rootSchemaWithDefinitions.definitions };
+      }
     }
   }
   
@@ -769,6 +797,7 @@ export function generateSqlDdl(
   try {
     const sql = convertSchemaToSql(
       schema,
+      rootSchemaWithDefinitions,
       tableName,
       databaseType,
       primaryKeyFields,

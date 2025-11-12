@@ -2,6 +2,12 @@
 
 All notable changes to n8n-nodes-schema-inferrer will be documented in this file.
 
+## [0.4.1] - 2025-11-12
+
+### Fixed
+- SQL DDL generation now resolves `$ref` references in properties when 'Minimise Output Size' is disabled
+
+
 ## [0.4.0] - 2025-11-11
 
 ### Added
