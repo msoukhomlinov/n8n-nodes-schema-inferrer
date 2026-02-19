@@ -701,7 +701,7 @@ function convertSchemaToTopupSql(
 
       const sqlArray = builder.toSQL();
       for (const sqlObj of sqlArray) {
-        const rawSql = sqlObj.sql as string;
+        const rawSql = sqlObj.sql;
         const transformed = addIfNotExistsToStatement(rawSql, sanitizedName, sanitizedTableName, databaseType);
         statements.push(transformed);
       }
