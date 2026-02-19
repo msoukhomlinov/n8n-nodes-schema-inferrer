@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.2] - 2026-02-19
+
+### Fixed
+- Package installation failure: `n8n-workflow` declared as `peerDependency` caused npm 7+ to auto-install it nested under the community node, resulting in a version mismatch and missing `dist/cjs/index.js` at runtime. Removed from `peerDependencies`; now only in `devDependencies` for local build/typecheck.
+
 ## [1.0.1] - 2026-02-19
 
 ### Fixed
