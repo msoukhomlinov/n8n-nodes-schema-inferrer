@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.3] - 2026-02-19
+
+### Added
+- **Input Source** toggle on all operations: choose between "Connected Input" (default, existing behaviour) and "Another Node" (enter a node name to pull items from any earlier node in the workflow).
+
 ## [1.0.2] - 2026-02-19
 
 ### Fixed

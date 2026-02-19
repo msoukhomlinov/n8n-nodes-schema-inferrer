@@ -23,8 +23,48 @@ export const debugMode: INodeProperties = {
   description: 'Enable debug output on each execution result',
 };
 
+export const inputSource: INodeProperties = {
+  displayName: 'Input Source',
+  name: 'inputSource',
+  type: 'options',
+  options: [
+    {
+      name: 'Connected Input',
+      value: 'connectedInput',
+      description: 'Use items from the directly connected node',
+    },
+    {
+      name: 'Another Node',
+      value: 'namedNode',
+      description: 'Pull items from a specific earlier node by name',
+    },
+  ],
+  default: 'connectedInput',
+  description: 'Which node to read input items from',
+};
+
+export const sourceNodeName: INodeProperties = {
+  displayName: 'Items Expression',
+  name: 'sourceNodeName',
+  type: 'string',
+  default: '',
+  placeholder: "={{ $('Node Name').all() }}",
+  displayOptions: {
+    show: {
+      inputSource: ['namedNode'],
+    },
+  },
+  description:
+    "Must be an n8n expression that returns items from another node.<br/>" +
+    "<b>All items:</b> <code>={{ $('Node Name').all() }}</code><br/>" +
+    "<b>First item only:</b> <code>={{ $('Node Name').first() }}</code><br/>" +
+    "<b>Last item only:</b> <code>={{ $('Node Name').last() }}</code>",
+};
+
 export const schemaInferrerNodeProperties = [
   operationProperty,
+  inputSource,
+  sourceNodeName,
   createNotice,
   requiredFieldOptions,
   inferenceOptions,

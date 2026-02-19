@@ -819,8 +819,8 @@ function getEffectiveRootObjectSchema(root: JsonSchema): JsonSchema {
 export function generateSqlDdl(
   context: IExecuteFunctions,
   enableDebug: boolean,
+  items: INodeExecutionData[],
 ): INodeExecutionData[][] {
-  const items = context.getInputData();
   if (items.length === 0) {
     throw new NodeOperationError(
       context.getNode(),

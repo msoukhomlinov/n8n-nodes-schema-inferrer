@@ -136,8 +136,8 @@ function setRequiredFields(
 export async function createSchema(
   context: IExecuteFunctions,
   enableDebug: boolean,
+  items: INodeExecutionData[],
 ): Promise<INodeExecutionData[][]> {
-  const items = context.getInputData();
   if (items.length === 0) {
     throw new NodeOperationError(
       context.getNode(),

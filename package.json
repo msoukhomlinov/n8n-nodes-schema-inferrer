@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-schema-inferrer",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "An n8n community node for inferring JSON schemas from sample data using quicktype-core.",
   "author": "Max Soukhomlinov",
   "license": "Apache-2.0",

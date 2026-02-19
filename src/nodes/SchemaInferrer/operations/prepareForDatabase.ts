@@ -136,8 +136,8 @@ function stringifyNestedFields(
 export function prepareForDatabase(
   context: IExecuteFunctions,
   enableDebug: boolean,
+  items: INodeExecutionData[],
 ): INodeExecutionData[][] {
-  const items = context.getInputData();
   const logger = context.logger;
 
   if (items.length === 0) {
