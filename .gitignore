@@ -40,3 +40,4 @@ coverage/
 #.cursorconfig
 .cursorignore
 .cursorrules
+.claude/
