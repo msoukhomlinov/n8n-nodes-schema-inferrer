@@ -30,7 +30,7 @@ function resolveSourceItems(
   }
 
   // Expression resolved to a single item — e.g. ={{ $('Node').last() }}
-  if (nodeParam !== null && typeof nodeParam === 'object' && 'json' in (nodeParam as object)) {
+  if (nodeParam !== null && typeof nodeParam === 'object' && 'json' in nodeParam) {
     if (enableDebug) {
       context.logger.debug('Schema Inferrer: Using single item from expression');
     }
