@@ -5,7 +5,9 @@
       "Bash(git show:*)",
       "Bash(git ls-tree:*)",
       "Bash(git stash:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(\"C:/Temp/n8n-nodes-schema-inferrer/CHANGELOG.md\":*)"
     ]
   }
 }

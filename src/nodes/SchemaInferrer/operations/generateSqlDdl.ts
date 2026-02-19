@@ -816,10 +816,10 @@ function getEffectiveRootObjectSchema(root: JsonSchema): JsonSchema {
   return effective;
 }
 
-export function generateSqlDdl(
+export async function generateSqlDdl(
   context: IExecuteFunctions,
   enableDebug: boolean,
-): INodeExecutionData[][] {
+): Promise<INodeExecutionData[][]> {
   const items = context.getInputData();
   if (items.length === 0) {
     throw new NodeOperationError(

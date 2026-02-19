@@ -18,7 +18,7 @@ export const overrideOptions: INodeProperties = {
       name: 'overrideRulesText',
       type: 'string',
       typeOptions: {
-        multipleLine: true,
+        rows: 4,
       },
       default: '',
       description:

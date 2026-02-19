@@ -1,114 +1,56 @@
 # Changelog
 
-All notable changes to n8n-nodes-schema-inferrer will be documented in this file.
+All notable changes to this project will be documented in this file.
 
-## [1.0.0] - 2026-02-19
-
-### Added
-
-- **Generate Column Topup Query** toggle on the Generate SQL DDL operation (off by default)
-  - When enabled, outputs a `topupSql` field alongside the existing `sql` (CREATE TABLE) field
-  - Generates `ALTER TABLE … ADD COLUMN IF NOT EXISTS` statements for each column
-  - Database-specific implementations:
-    - **PostgreSQL / CockroachDB / SQLite 3.37.0+**: native `ADD COLUMN IF NOT EXISTS` syntax
-    - **MySQL / MariaDB**: native `ADD COLUMN IF NOT EXISTS` syntax (MariaDB 10.0.2+ / MySQL 8.0+)
-    - **MSSQL**: conditional wrapper using `sys.columns` existence check
-    - **Oracle**: PL/SQL `BEGIN / EXECUTE IMMEDIATE / EXCEPTION WHEN ORA-01430` block
-
-### Changed
-
-- `mapJsonSchemaTypeToKnex` and `processSchemaProperties` now accept the common `TableBuilder` base type, supporting both CREATE TABLE and ALTER TABLE builder contexts
-- Database type dropdown merges MySQL and MariaDB into a single **MySQL / MariaDB** option (both use the `mysql2` client; no behavioural difference)
-- **Generate Column Topup Query** description now states per-database minimum version requirements (SQLite 3.37.0+, MySQL 8.0+, MariaDB 10.0.2+)
+## [1.0.1] - 2026-02-19
 
 ### Fixed
-
-- Topup SQL now correctly emits `PRIMARY KEY` constraint for non-integer primary key columns (e.g. UUID); previously `.primary()` was only applied on the CREATE TABLE path
-
-## [0.5.0] - 2025-11-12
-
-### Added
-- **Prepare for Database** operation for PostgreSQL JSONB/JSON compatibility
-  - Serializes nested objects/arrays to JSON strings based on schema
-  - Required for n8n PostgreSQL node auto-mapping with nested data
-  - Options: Skip Already Stringified, Pretty Print, Strict Mode
-
-### Fixed
-- Prepare for Database now correctly resolves `$ref` references in schemas
-  - Handles root-level `$ref` (e.g., `"$ref": "#/definitions/Root"`)
-  - Resolves field-level `$ref` references
-  - Properly detects array and object fields for stringification
-- Added defensive handling for array-wrapped schema inputs
-- Enhanced debug logging for schema structure and field detection
-
-## [0.4.1] - 2025-11-12
-
-### Fixed
-- SQL DDL generation now resolves `$ref` references in properties when 'Minimise Output Size' is disabled
-
-
-## [0.4.0] - 2025-11-11
-
-### Added
-- **Preserve Nullability On Type Override** option in SQL DDL Override Options (default: true)
-  - When enabled, fields that originally allowed null values maintain their nullability after type overrides
-  - Ensures nullable fields in the schema remain nullable in generated SQL DDL
-  - Works with all database dialects (PostgreSQL, MySQL, MSSQL, SQLite, Oracle, CockroachDB)
+- Package installation failure caused by `n8n-workflow` being declared as a `dependency` instead of a `peerDependency`, which produced a nested `ast-types` module conflict on install.
+- Quick Rules text areas in Override Options (Create Schema and SQL DDL) were rendering as single-line inputs due to invalid `multipleLine` typeOption; corrected to `rows: 4`.
 
 ### Changed
-- Type overrides now preserve original nullability by default when changing field types
-- Nullability preservation applies to both Quick Rules and Advanced Rules
+- `n8n-workflow` moved to `peerDependencies` (runtime) and `devDependencies` (build/typecheck). No longer bundled with the package.
+- Debug mode moved from a separate Credential (`SchemaInferrerConfig`) to a **Debug Mode** toggle directly on the node. Existing workflows using the credential will need to enable the toggle on the node instead.
+- `inputs`/`outputs` updated to use `NodeConnectionTypes.Main` constant instead of the `'main'` string literal.
+- Debug logging in the Prepare for Database operation now uses `context.logger` instead of `console.log`/`console.warn`.
 
+### Removed
+- `SchemaInferrerConfig` credential type — no longer needed.
 
-## [0.3.0] - 2025-11-11
+## [1.0.0] - 2025-01-01
 
 ### Added
-- Naming Options: Lowercase All Fields (Create, DDL) and Quote Identifiers (DDL), both default off.
+- **Generate Column Topup Query** option in SQL DDL operation: generates `ALTER TABLE … ADD COLUMN IF NOT EXISTS` statements alongside the `CREATE TABLE` output. Supports PostgreSQL, MySQL/MariaDB, MSSQL, Oracle, CockroachDB, and SQLite.
 
 ### Changed
-- DDL can quote identifiers per dialect to preserve case/special characters.
+- Database type dropdown simplified.
+- `mapJsonSchemaTypeToKnex` and `processSchemaProperties` updated to support both CREATE and ALTER TABLE contexts.
+- Primary key constraints now handled correctly for non-integer columns in topup SQL.
+
+## [0.5.0] - 2024-12-01
+
+### Added
+- **Prepare for Database** operation: serializes nested objects and arrays to JSON strings based on schema, for compatibility with PostgreSQL JSONB/JSON columns.
 
 ### Fixed
-- sanitizeColumnName no longer forces lowercase; follows toggle.
-- Primary key matching now compares sanitized names consistently.
+- `$ref` reference resolution in schemas.
+- Array-wrapped schema input handling.
 
-### Docs
-- README updated for naming and quoting options with examples.
+## [0.4.1] - 2024-11-01
 
+### Fixed
+- SQL DDL generation: `$ref` references in properties now resolved correctly when **Minimise Output Size** is disabled.
 
-## [0.2.0] - 2025-11-11
-
-### Added
-
-- Quick Rules wildcard support in SQL DDL generation:
-  - Contains: `*part*->type`
-  - Prefix: `pre*->type`
-  - Suffix: `*suf->type`
-- Overrides now applied to properties inside `schema.definitions` as well as root `properties`
-- Updated UI help text to document wildcard patterns
-- Updated README with wildcard documentation and examples
-
-### Changed
-
-- Enhanced matching logic for overrides (first match still wins)
-- Improved consistency of override application across nested schemas
-
-## [0.1.0] - 2025-11-11
+## [0.4.0] - 2024-10-01
 
 ### Added
+- **Preserve Nullability on Type Override** option in SQL DDL override rules: retains original nullable union when changing a field type.
 
-- Initial release of Schema Inferrer node
-- JSON Schema inference from sample JSON data using `@jsonhero/schema-infer`
-- TypeScript type definition generation from inferred schemas
-- Configuration options for schema format selection (JSON Schema or TypeScript)
-- Null handling configuration (Nullable, Required)
-- Type strictness options (Strict, Loose)
-- Support for nested object structures
-- Support for array inference with optional field detection
-- Comprehensive error handling with helpful error messages
+## [0.3.0] - 2024-09-01
 
-### Features
+### Added
+- **Naming Options** for SQL DDL: lowercase fields and quote identifiers.
+- Wildcard prefix/suffix support (`pre*`, `*suf`) in SQL DDL quick override rules.
 
-- **Schema Inference**: Automatically generates JSON Schema (draft 2020-12) from sample JSON input
-- **TypeScript Generation**: Converts JSON Schema to TypeScript type definitions
-- **Flexible Configuration**: Options for customising schema generation
+### Fixed
+- Override rules now applied consistently across all definitions in the schema.

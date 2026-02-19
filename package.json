@@ -1,8 +1,8 @@
 {
   "name": "n8n-nodes-schema-inferrer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "An n8n community node for inferring JSON schemas from sample data using quicktype-core.",
-  "author": "Max Soukhomlinov <maxs@intellectit.com.au>",
+  "author": "Max Soukhomlinov",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -41,14 +41,17 @@
   },
   "dependencies": {
     "knex": "^3.1.0",
-    "n8n-workflow": "^1.41.0",
     "quicktype-core": "^23.0.170"
+  },
+  "peerDependencies": {
+    "n8n-workflow": ">=1.41.0"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
+    "n8n-workflow": ">=1.41.0",
     "prettier": "^3.2.5",
     "rimraf": "^5.0.5",
     "ts-node": "^10.9.2",
@@ -58,9 +61,6 @@
   "n8n": {
     "nodes": [
       "dist/nodes/SchemaInferrer/SchemaInferrer.node.js"
-    ],
-    "credentials": [
-      "dist/credentials/SchemaInferrerConfig.credentials.js"
     ]
   }
 }

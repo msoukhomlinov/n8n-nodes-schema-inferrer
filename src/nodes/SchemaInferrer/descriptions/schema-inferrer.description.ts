@@ -15,6 +15,14 @@ import { sqlOverrideOptions } from './sqlOverrideOptions.js';
 import { minimiseOutput, includeDefinitions } from './outputSizeOptions.js';
 import { namingOptionsCreate, namingOptionsSqlDdl } from './namingOptions.js';
 
+export const debugMode: INodeProperties = {
+  displayName: 'Debug Mode',
+  name: 'debugMode',
+  type: 'boolean',
+  default: false,
+  description: 'Enable debug output on each execution result',
+};
+
 export const schemaInferrerNodeProperties = [
   operationProperty,
   createNotice,
@@ -35,6 +43,7 @@ export const schemaInferrerNodeProperties = [
   prepareForDatabaseNotice,
   prepareForDatabaseSchema,
   prepareForDatabaseOptions,
+  debugMode,
 ] satisfies INodeProperties[];
 
 

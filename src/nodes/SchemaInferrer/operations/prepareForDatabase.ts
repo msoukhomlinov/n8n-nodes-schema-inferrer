@@ -138,6 +138,7 @@ export function prepareForDatabase(
   enableDebug: boolean,
 ): INodeExecutionData[][] {
   const items = context.getInputData();
+  const logger = context.logger;
 
   if (items.length === 0) {
     throw new NodeOperationError(
@@ -148,10 +149,9 @@ export function prepareForDatabase(
 
   // Get schema (required)
   let schemaInput = context.getNodeParameter('schema', 0) as IDataObject | string | IDataObject[];
-  
+
   if (enableDebug) {
-    // eslint-disable-next-line no-console
-    console.log('Schema Inferrer (Prepare for Database): Raw schema input:', {
+    logger.debug('Schema Inferrer (Prepare for Database): Raw schema input', {
       type: typeof schemaInput,
       isArray: Array.isArray(schemaInput),
       isString: typeof schemaInput === 'string',
@@ -165,22 +165,21 @@ export function prepareForDatabase(
       firstItemKeys: Array.isArray(schemaInput) && schemaInput.length > 0
         ? Object.keys(schemaInput[0])
         : undefined,
-      valuePreview: typeof schemaInput === 'string' 
-        ? schemaInput.substring(0, 100) 
+      valuePreview: typeof schemaInput === 'string'
+        ? schemaInput.substring(0, 100)
         : JSON.stringify(schemaInput).substring(0, 200),
     });
   }
-  
+
   // Handle empty/invalid input
   if (!schemaInput || (typeof schemaInput === 'object' && Object.keys(schemaInput).length === 0)) {
     const message = 'Schema parameter is empty or invalid. Please provide a valid schema from the Create Schema operation.';
     if (enableDebug) {
-      // eslint-disable-next-line no-console
-      console.log(`Schema Inferrer (Prepare for Database): ${message}`);
+      logger.debug(`Schema Inferrer (Prepare for Database): ${message}`);
     }
     throw new NodeOperationError(context.getNode(), message);
   }
-  
+
   const prepareOptionsRaw = context.getNodeParameter('prepareOptions', 0, {}) as {
     skipAlreadyStringified?: boolean;
     prettyPrint?: boolean;
@@ -197,48 +196,42 @@ export function prepareForDatabase(
   // Handle array-wrapped schema (e.g., [{ "schema": {...} }])
   if (Array.isArray(schemaInput) && schemaInput.length > 0) {
     if (enableDebug) {
-      // eslint-disable-next-line no-console
-      console.log('Schema Inferrer (Prepare for Database): Schema is array-wrapped, extracting first item');
+      logger.debug('Schema Inferrer (Prepare for Database): Schema is array-wrapped, extracting first item');
     }
     // Check if it's wrapped with a "schema" key
     if ('schema' in schemaInput[0]) {
       schemaInput = schemaInput[0].schema as IDataObject | string;
       if (enableDebug) {
-        // eslint-disable-next-line no-console
-        console.log('Schema Inferrer (Prepare for Database): Extracted from array[0].schema');
+        logger.debug('Schema Inferrer (Prepare for Database): Extracted from array[0].schema');
       }
     } else {
       schemaInput = schemaInput[0];
       if (enableDebug) {
-        // eslint-disable-next-line no-console
-        console.log('Schema Inferrer (Prepare for Database): Extracted from array[0]');
+        logger.debug('Schema Inferrer (Prepare for Database): Extracted from array[0]');
       }
     }
   }
 
   if (typeof schemaInput === 'string') {
     if (enableDebug) {
-      // eslint-disable-next-line no-console
-      console.log('Schema Inferrer (Prepare for Database): Parsing string schema, length:', schemaInput.length);
+      logger.debug(`Schema Inferrer (Prepare for Database): Parsing string schema, length: ${schemaInput.length}`);
     }
     try {
       let parsed = JSON.parse(schemaInput) as IDataObject | IDataObject[];
-      
+
       // If parsed result is an array, extract first item
       if (Array.isArray(parsed) && parsed.length > 0) {
         if (enableDebug) {
-          // eslint-disable-next-line no-console
-          console.log('Schema Inferrer (Prepare for Database): Parsed string is an array, extracting first item');
+          logger.debug('Schema Inferrer (Prepare for Database): Parsed string is an array, extracting first item');
         }
         parsed = parsed[0];
       }
-      
+
       // Check if the parsed result has a 'schema' wrapper (from Create Schema output)
       if (typeof parsed === 'object' && parsed !== null && 'schema' in parsed && typeof parsed.schema === 'object') {
         schema = parsed.schema as JsonSchema;
         if (enableDebug) {
-          // eslint-disable-next-line no-console
-          console.log('Schema Inferrer (Prepare for Database): Extracted schema from parsed.schema wrapper');
+          logger.debug('Schema Inferrer (Prepare for Database): Extracted schema from parsed.schema wrapper');
         }
       } else {
         schema = parsed as JsonSchema;
@@ -249,8 +242,7 @@ export function prepareForDatabase(
       if (strictMode) {
         throw new NodeOperationError(context.getNode(), message);
       } else {
-        // eslint-disable-next-line no-console
-        console.warn(`Schema Inferrer (Prepare for Database): ${message}`);
+        logger.warn(`Schema Inferrer (Prepare for Database): ${message}`);
         // Pass through without transformation
         return [items];
       }
@@ -260,21 +252,18 @@ export function prepareForDatabase(
     if ('schema' in schemaInput && typeof schemaInput.schema === 'object') {
       schema = schemaInput.schema as JsonSchema;
       if (enableDebug) {
-        // eslint-disable-next-line no-console
-        console.log('Schema Inferrer (Prepare for Database): Extracted schema from object.schema wrapper');
+        logger.debug('Schema Inferrer (Prepare for Database): Extracted schema from object.schema wrapper');
       }
     } else {
       schema = schemaInput as JsonSchema;
       if (enableDebug) {
-        // eslint-disable-next-line no-console
-        console.log('Schema Inferrer (Prepare for Database): Using object schema directly, keys:', Object.keys(schemaInput));
+        logger.debug(`Schema Inferrer (Prepare for Database): Using object schema directly, keys: ${Object.keys(schemaInput).join(', ')}`);
       }
     }
   }
 
   if (enableDebug) {
-    // eslint-disable-next-line no-console
-    console.log('Schema Inferrer (Prepare for Database): Final schema structure:', {
+    logger.debug('Schema Inferrer (Prepare for Database): Final schema structure', {
       hasRef: !!schema.$ref,
       ref: schema.$ref,
       hasProperties: !!schema.properties,
@@ -288,13 +277,11 @@ export function prepareForDatabase(
   const fieldsToStringify = extractJsonFieldsFromSchema(schema);
 
   if (enableDebug) {
-    // eslint-disable-next-line no-console
-    console.log('Schema Inferrer (Prepare for Database): Fields to stringify:', Array.from(fieldsToStringify));
+    logger.debug(`Schema Inferrer (Prepare for Database): Fields to stringify: ${Array.from(fieldsToStringify).join(', ')}`);
   }
 
   if (fieldsToStringify.size === 0 && enableDebug) {
-    // eslint-disable-next-line no-console
-    console.log(
+    logger.debug(
       'Schema Inferrer (Prepare for Database): No object/array fields found in schema. Data will pass through unchanged.',
     );
   }

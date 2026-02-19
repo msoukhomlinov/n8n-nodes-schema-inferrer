@@ -1,5 +1,5 @@
 import type { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
+import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 import { schemaInferrerNodeProperties } from './index.js';
 import { createSchema } from './operations/createSchema.js';
 import { generateSqlDdl } from './operations/generateSqlDdl.js';
@@ -15,25 +15,15 @@ export class SchemaInferrer implements INodeType {
     defaults: {
       name: 'Schema Inferrer',
     },
-    inputs: ['main'],
-    outputs: ['main'],
+    inputs: [NodeConnectionTypes.Main],
+    outputs: [NodeConnectionTypes.Main],
     icon: 'file:schema-inferrer.svg',
     usableAsTool: true,
-    credentials: [
-      {
-        name: 'schemaInferrerConfig',
-        required: false,
-      },
-    ],
     properties: schemaInferrerNodeProperties,
   };
 
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-    const creds = await this.getCredentials('schemaInferrerConfig').catch(() => undefined);
-    const enableDebug =
-      creds && typeof (creds as Record<string, unknown>).enableDebug === 'boolean'
-        ? ((creds as Record<string, unknown>).enableDebug as boolean)
-        : false;
+    const enableDebug = this.getNodeParameter('debugMode', 0, false) as boolean;
     const operation = this.getNodeParameter('operation', 0, 'create');
 
     switch (operation) {

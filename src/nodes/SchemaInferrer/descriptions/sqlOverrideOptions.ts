@@ -18,7 +18,7 @@ export const sqlOverrideOptions: INodeProperties = {
 			name: 'overrideRulesText',
 			type: 'string',
 			typeOptions: {
-				multipleLine: true,
+				rows: 4,
 			},
 			default: '',
 			description:
