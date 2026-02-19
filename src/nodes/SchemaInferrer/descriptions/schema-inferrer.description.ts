@@ -10,7 +10,7 @@ import { requiredFieldOptions } from './requiredFieldOptions.js';
 import { inferenceOptions } from './inferenceOptions.js';
 import { overrideOptions } from './overrideOptions.js';
 import { outputFormatting } from './outputFormatting.js';
-import { databaseType, tableName, primaryKeyOptions } from './sqlOptions.js';
+import { databaseType, tableName, primaryKeyOptions, generateTopupQuery } from './sqlOptions.js';
 import { sqlOverrideOptions } from './sqlOverrideOptions.js';
 import { minimiseOutput, includeDefinitions } from './outputSizeOptions.js';
 import { namingOptionsCreate, namingOptionsSqlDdl } from './namingOptions.js';
@@ -29,6 +29,7 @@ export const schemaInferrerNodeProperties = [
   databaseType,
   tableName,
   primaryKeyOptions,
+  generateTopupQuery,
   sqlOverrideOptions,
   namingOptionsSqlDdl,
   prepareForDatabaseNotice,

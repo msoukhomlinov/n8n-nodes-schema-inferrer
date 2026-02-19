@@ -2,6 +2,29 @@
 
 All notable changes to n8n-nodes-schema-inferrer will be documented in this file.
 
+## [1.0.0] - 2026-02-19
+
+### Added
+
+- **Generate Column Topup Query** toggle on the Generate SQL DDL operation (off by default)
+  - When enabled, outputs a `topupSql` field alongside the existing `sql` (CREATE TABLE) field
+  - Generates `ALTER TABLE … ADD COLUMN IF NOT EXISTS` statements for each column
+  - Database-specific implementations:
+    - **PostgreSQL / CockroachDB / SQLite 3.37.0+**: native `ADD COLUMN IF NOT EXISTS` syntax
+    - **MySQL / MariaDB**: native `ADD COLUMN IF NOT EXISTS` syntax (MariaDB 10.0.2+ / MySQL 8.0+)
+    - **MSSQL**: conditional wrapper using `sys.columns` existence check
+    - **Oracle**: PL/SQL `BEGIN / EXECUTE IMMEDIATE / EXCEPTION WHEN ORA-01430` block
+
+### Changed
+
+- `mapJsonSchemaTypeToKnex` and `processSchemaProperties` now accept the common `TableBuilder` base type, supporting both CREATE TABLE and ALTER TABLE builder contexts
+- Database type dropdown merges MySQL and MariaDB into a single **MySQL / MariaDB** option (both use the `mysql2` client; no behavioural difference)
+- **Generate Column Topup Query** description now states per-database minimum version requirements (SQLite 3.37.0+, MySQL 8.0+, MariaDB 10.0.2+)
+
+### Fixed
+
+- Topup SQL now correctly emits `PRIMARY KEY` constraint for non-integer primary key columns (e.g. UUID); previously `.primary()` was only applied on the CREATE TABLE path
+
 ## [0.5.0] - 2025-11-12
 
 ### Added

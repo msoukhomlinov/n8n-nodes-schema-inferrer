@@ -10,11 +10,7 @@ export const databaseType: INodeProperties = {
       value: 'pg',
     },
     {
-      name: 'MySQL',
-      value: 'mysql2',
-    },
-    {
-      name: 'MariaDB',
+      name: 'MySQL / MariaDB',
       value: 'mysql2',
     },
     {
@@ -50,6 +46,20 @@ export const tableName: INodeProperties = {
   default: 'my_table',
   required: true,
   description: 'The name of the table to create',
+  displayOptions: {
+    show: {
+      operation: ['generateSqlDdl'],
+    },
+  },
+};
+
+export const generateTopupQuery: INodeProperties = {
+  displayName: 'Generate Column Topup Query',
+  name: 'generateTopupQuery',
+  type: 'boolean',
+  default: false,
+  description:
+    'When enabled, also generates ALTER TABLE ADD COLUMN IF NOT EXISTS statements for each column. Useful for updating an existing table schema without recreating it. Requires: SQLite 3.37.0+, MySQL 8.0+, MariaDB 10.0.2+.',
   displayOptions: {
     show: {
       operation: ['generateSqlDdl'],
