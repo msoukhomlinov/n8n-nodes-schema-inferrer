@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.4] - 2026-02-19
+
+### Fixed
+- **Generate Column Topup Query**: primary key columns are now excluded from the `ALTER TABLE … ADD COLUMN` output. The target table already has its primary key, so including it caused a "multiple primary keys are not allowed" error.
+
+### Changed
+- **Input Source — Another Node**: the node name field has been replaced with an expression-only field. Use `={{ $('Node Name').all() }}`, `.first()`, or `.last()` to select items from an earlier node. Plain node names are no longer accepted as they did not resolve reliably at runtime.
+
 ## [1.0.3] - 2026-02-19
 
 ### Added

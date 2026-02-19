@@ -682,6 +682,11 @@ function convertSchemaToTopupSql(
 
       const sanitizedName = sanitizeColumnName(propertyName, lowercaseAllFields, quoteIdentifiers);
       const isPrimaryKey = sanitizedPrimaryKeyFields.includes(sanitizedName);
+
+      // Skip primary key columns — the table already exists with its PK; adding it again
+      // would produce "multiple primary keys … are not allowed".
+      if (isPrimaryKey) continue;
+
       const listedRequired = requiredFields.includes(propertyName);
       const allowsNull = schemaAllowsNull(resolvedProperty);
       const isRequired = listedRequired && !allowsNull;
@@ -691,10 +696,7 @@ function convertSchemaToTopupSql(
       // column to an existing table via ALTER TABLE is non-trivial and DB-specific.
       const builder = knexInstance.schema.table(sanitizedTableName, (table) => {
         const column = mapJsonSchemaTypeToKnex(resolvedProperty, sanitizedName, table, databaseType);
-        if (isPrimaryKey) {
-          column.primary();
-        }
-        if (isRequired && !isPrimaryKey) {
+        if (isRequired) {
           column.notNullable();
         }
       });
