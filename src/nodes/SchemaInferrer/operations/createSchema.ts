@@ -69,8 +69,26 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function mergeObservedNullability(schema: JsonSchema, samples: unknown[]): void {
-  if (!schema.properties || samples.length === 0) return;
+function mergeObservedNullability(schema: JsonSchema, samples: unknown[], rootSchema?: JsonSchema): void {
+  const root = rootSchema ?? schema;
+
+  if (!schema.properties) {
+    // Follow $ref to definitions so we handle standard quicktype output where
+    // properties live under definitions rather than inline at root.
+    if (
+      typeof schema.$ref === 'string' &&
+      schema.$ref.startsWith('#/definitions/') &&
+      root.definitions
+    ) {
+      const defName = schema.$ref.replace('#/definitions/', '');
+      const target = root.definitions[defName];
+      if (target) mergeObservedNullability(target, samples, root);
+    }
+    return;
+  }
+
+  if (samples.length === 0) return;
+
   const properties = schema.properties as Record<string, JsonSchema>;
 
   for (const [propertyName, propertySchema] of Object.entries(properties)) {
@@ -85,11 +103,25 @@ function mergeObservedNullability(schema: JsonSchema, samples: unknown[]): void 
     const nonNullSamples = propertySamples.filter((value) => value !== null && value !== undefined);
     if (nonNullSamples.length === 0) continue;
 
-    if (propertySchema.properties) {
-      mergeObservedNullability(propertySchema, nonNullSamples);
+    // Resolve $ref for nested object properties before recursing
+    let resolvedPropertySchema = propertySchema;
+    if (
+      !propertySchema.properties &&
+      typeof propertySchema.$ref === 'string' &&
+      propertySchema.$ref.startsWith('#/definitions/') &&
+      root.definitions
+    ) {
+      const defName = propertySchema.$ref.replace('#/definitions/', '');
+      const target = root.definitions[defName];
+      if (target) resolvedPropertySchema = target;
     }
 
-    if (propertySchema.items && typeof propertySchema.items === 'object') {
+    if (resolvedPropertySchema.properties) {
+      mergeObservedNullability(resolvedPropertySchema, nonNullSamples, root);
+    }
+
+    if (resolvedPropertySchema.items && typeof resolvedPropertySchema.items === 'object') {
+      const itemsSchema = resolvedPropertySchema.items as JsonSchema;
       const arrayItemSamples = nonNullSamples.reduce<unknown[]>((acc, value) => {
         if (Array.isArray(value)) {
           for (const entry of value) {
@@ -100,8 +132,13 @@ function mergeObservedNullability(schema: JsonSchema, samples: unknown[]): void 
         }
         return acc;
       }, []);
-      if (arrayItemSamples.length > 0) {
-        mergeObservedNullability(propertySchema.items as JsonSchema, arrayItemSamples);
+      // Mark items schema nullable if any array item is null
+      if (arrayItemSamples.some((v) => v === null)) {
+        ensureTypeAllowsNull(itemsSchema);
+      }
+      const nonNullItemSamples = arrayItemSamples.filter((v) => v !== null && v !== undefined);
+      if (nonNullItemSamples.length > 0) {
+        mergeObservedNullability(itemsSchema, nonNullItemSamples, root);
       }
     }
   }
@@ -276,6 +313,11 @@ export async function createSchema(
     const schemaString = lines.join('\n');
     let schema = JSON.parse(schemaString) as JsonSchema;
 
+    // Merge observed nullability before lowercasing so schema keys and sample keys
+    // share the same casing during the merge.
+    const sampleItems = items.map((item) => item.json ?? {});
+    mergeObservedNullability(schema, sampleItems);
+
     // Apply lowercasing if enabled (before other transformations)
     const namingOptionsRaw = context.getNodeParameter('namingOptions', 0, {}) as {
       lowercaseAllFields?: boolean;
@@ -284,12 +326,6 @@ export async function createSchema(
     if (lowercaseAllFields) {
       lowercaseSchemaProperties(schema);
     }
-
-    // quicktype can infer required fields from presence, but we explicitly preserve
-    // observed nulls in top-level sample properties so downstream SQL generation can
-    // correctly avoid NOT NULL constraints for nullable fields.
-    const sampleItems = items.map((item) => item.json ?? {});
-    mergeObservedNullability(schema, sampleItems);
 
     const minimiseOutput = context.getNodeParameter('minimiseOutput', 0, true) as boolean;
     const includeDefinitions = context.getNodeParameter('includeDefinitions', 0, false) as boolean;

@@ -689,6 +689,8 @@ function convertSchemaToTopupSql(
       // Build an ALTER TABLE … ADD COLUMN statement for this property.
       // We intentionally avoid .increments() here — adding a serial/auto-increment
       // column to an existing table via ALTER TABLE is non-trivial and DB-specific.
+      // Intentionally no .notNullable(): ALTER TABLE ADD COLUMN on an existing table cannot
+      // enforce NOT NULL without a DEFAULT clause covering existing rows.
       const builder = knexInstance.schema.table(sanitizedTableName, (table) => {
         mapJsonSchemaTypeToKnex(resolvedProperty, sanitizedName, table, databaseType);
       });
