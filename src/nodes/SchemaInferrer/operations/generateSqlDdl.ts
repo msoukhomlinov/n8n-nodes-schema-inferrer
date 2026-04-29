@@ -451,6 +451,7 @@ function processSchemaProperties(
   primaryKeyFields: string[],
   lowercaseAllFields: boolean,
   quoteIdentifiers: boolean,
+  omitNotNull: boolean,
 ): void {
   if (!schema.properties) {
     throw new Error('Schema has no properties to convert');
@@ -492,7 +493,7 @@ function processSchemaProperties(
       if (isPrimaryKey) {
         column.primary();
       }
-      if (isRequired && !isPrimaryKey) {
+      if (isRequired && !isPrimaryKey && !omitNotNull) {
         column.notNullable();
       }
     }
@@ -538,6 +539,7 @@ function convertSchemaToSql(
   primaryKeyFields: string[],
   lowercaseAllFields: boolean,
   quoteIdentifiers: boolean,
+  omitNotNull: boolean,
 ): string {
   const wrapIdentifier = getWrapIdentifier(databaseType, quoteIdentifiers);
   const knexConfig: knex.Knex.Config = {
@@ -568,6 +570,7 @@ function convertSchemaToSql(
         primaryKeyFields,
         lowercaseAllFields,
         quoteIdentifiers,
+        omitNotNull,
       );
     });
     const sqlArray = builder.toSQL();
@@ -911,6 +914,7 @@ export function generateSqlDdl(
     overrideRulesText?: string;
     overrideRules?: { rule?: Array<{ fieldName: string; matchType: 'exact' | 'partial'; newType: string }> };
     preserveNullabilityOnTypeOverride?: boolean;
+    omitNotNull?: boolean;
   };
   const overrideRulesText = sqlOverrideOptionsRaw.overrideRulesText ?? '';
   const parsedRules = parseOverrideRules(overrideRulesText);
@@ -928,6 +932,7 @@ export function generateSqlDdl(
     }));
   const combinedRules = [...parsedRules, ...advancedRules];
   const preserveNullability = sqlOverrideOptionsRaw.preserveNullabilityOnTypeOverride ?? true;
+  const omitNotNull = sqlOverrideOptionsRaw.omitNotNull ?? false;
   applyOverrides(schema, combinedRules, preserveNullability);
 
   try {
@@ -939,6 +944,7 @@ export function generateSqlDdl(
       primaryKeyFields,
       lowercaseAllFields,
       quoteIdentifiers,
+      omitNotNull,
     );
     const capDebug = (value: unknown): unknown => {
       try {
