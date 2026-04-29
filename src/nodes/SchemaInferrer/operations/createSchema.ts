@@ -49,6 +49,64 @@ function clearAllRequiredFields(schema: JsonSchema): void {
   }
 }
 
+function ensureTypeAllowsNull(propertySchema: JsonSchema): void {
+  const currentType = propertySchema.type;
+  if (currentType === 'null') {
+    return;
+  }
+  if (Array.isArray(currentType)) {
+    if (!currentType.includes('null')) {
+      propertySchema.type = [...currentType, 'null'];
+    }
+    return;
+  }
+  if (typeof currentType === 'string') {
+    propertySchema.type = [currentType, 'null'];
+  }
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function mergeObservedNullability(schema: JsonSchema, samples: unknown[]): void {
+  if (!schema.properties || samples.length === 0) return;
+  const properties = schema.properties as Record<string, JsonSchema>;
+
+  for (const [propertyName, propertySchema] of Object.entries(properties)) {
+    const propertySamples = samples
+      .filter(isObjectRecord)
+      .map((sample) => sample[propertyName]);
+
+    if (propertySamples.some((value) => value === null)) {
+      ensureTypeAllowsNull(propertySchema);
+    }
+
+    const nonNullSamples = propertySamples.filter((value) => value !== null && value !== undefined);
+    if (nonNullSamples.length === 0) continue;
+
+    if (propertySchema.properties) {
+      mergeObservedNullability(propertySchema, nonNullSamples);
+    }
+
+    if (propertySchema.items && typeof propertySchema.items === 'object') {
+      const arrayItemSamples = nonNullSamples.reduce<unknown[]>((acc, value) => {
+        if (Array.isArray(value)) {
+          for (const entry of value) {
+            if (entry !== undefined) {
+              acc.push(entry);
+            }
+          }
+        }
+        return acc;
+      }, []);
+      if (arrayItemSamples.length > 0) {
+        mergeObservedNullability(propertySchema.items as JsonSchema, arrayItemSamples);
+      }
+    }
+  }
+}
+
 function lowercaseSchemaProperties(schema: JsonSchema): void {
   // Transform properties keys to lowercase
   if (schema.properties) {
@@ -226,6 +284,12 @@ export async function createSchema(
     if (lowercaseAllFields) {
       lowercaseSchemaProperties(schema);
     }
+
+    // quicktype can infer required fields from presence, but we explicitly preserve
+    // observed nulls in top-level sample properties so downstream SQL generation can
+    // correctly avoid NOT NULL constraints for nullable fields.
+    const sampleItems = items.map((item) => item.json ?? {});
+    mergeObservedNullability(schema, sampleItems);
 
     const minimiseOutput = context.getNodeParameter('minimiseOutput', 0, true) as boolean;
     const includeDefinitions = context.getNodeParameter('includeDefinitions', 0, false) as boolean;
@@ -553,5 +617,3 @@ export async function createSchema(
     throw new NodeOperationError(context.getNode(), 'Failed to infer JSON schema: Unknown error');
   }
 }
-
-

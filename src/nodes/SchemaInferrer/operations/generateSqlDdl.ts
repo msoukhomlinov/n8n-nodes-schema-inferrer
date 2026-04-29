@@ -661,7 +661,6 @@ function convertSchemaToTopupSql(
   const knexInstance = knex(knexConfig);
   try {
     const properties = schema.properties as Record<string, Record<string, unknown>>;
-    const requiredFields = schema.required || [];
     const sanitizedPrimaryKeyFields = primaryKeyFields.map((field) =>
       sanitizeColumnName(field, lowercaseAllFields, quoteIdentifiers),
     );
@@ -687,18 +686,11 @@ function convertSchemaToTopupSql(
       // would produce "multiple primary keys … are not allowed".
       if (isPrimaryKey) continue;
 
-      const listedRequired = requiredFields.includes(propertyName);
-      const allowsNull = schemaAllowsNull(resolvedProperty);
-      const isRequired = listedRequired && !allowsNull;
-
       // Build an ALTER TABLE … ADD COLUMN statement for this property.
       // We intentionally avoid .increments() here — adding a serial/auto-increment
       // column to an existing table via ALTER TABLE is non-trivial and DB-specific.
       const builder = knexInstance.schema.table(sanitizedTableName, (table) => {
-        const column = mapJsonSchemaTypeToKnex(resolvedProperty, sanitizedName, table, databaseType);
-        if (isRequired) {
-          column.notNullable();
-        }
+        mapJsonSchemaTypeToKnex(resolvedProperty, sanitizedName, table, databaseType);
       });
 
       const sqlArray = builder.toSQL();
@@ -1018,5 +1010,3 @@ export function generateSqlDdl(
     throw new NodeOperationError(context.getNode(), 'Failed to generate SQL DDL: Unknown error');
   }
 }
-
-

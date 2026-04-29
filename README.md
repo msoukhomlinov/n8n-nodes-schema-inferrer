@@ -7,6 +7,7 @@ An n8n community node for inferring JSON schemas from sample data using `quickty
 - **Create Schema**: Generate JSON Schema from one or multiple input JSON data items
   - Automatically merges multiple samples into a unified schema
   - Uses `quicktype-core` for robust schema inference
+  - Preserves observed top-level `null` values as nullable schema types
 - **Generate SQL DDL**: Convert JSON schemas to SQL CREATE TABLE statements
   - Supports multiple database types (PostgreSQL, MySQL, MariaDB, SQLite3, MSSQL, Oracle, CockroachDB)
   - Intelligent type mapping from JSON Schema to SQL column types
@@ -207,6 +208,8 @@ The "Generate SQL DDL" operation converts a JSON schema to SQL CREATE TABLE stat
 ```
 
 The generated SQL can then be executed against your database or saved for later use.
+
+When **Generate Column Topup Query** is enabled, added columns are intentionally created as nullable in the `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` output so existing rows in populated tables are not invalidated.
 
 #### Override Rules for SQL DDL
 
