@@ -92,6 +92,14 @@ export const sqlOverrideOptions: INodeProperties = {
 			description:
 				'When changing a field type via override rules, keep original nullability (union with null) unless disabled.',
 		},
+		{
+			displayName: 'Omit NOT NULL Constraints',
+			name: 'omitNotNull',
+			type: 'boolean',
+			default: false,
+			description:
+				'When enabled, no NOT NULL constraints are added to any column, regardless of the schema required fields.',
+		},
 	],
 };
 

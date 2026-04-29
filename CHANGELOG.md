@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.6] - 2026-04-29
+
+### Added
+- **Generate SQL DDL — Omit NOT NULL Constraints**: new toggle in Override Options (default off). When enabled, suppresses all `NOT NULL` constraints from `CREATE TABLE` output regardless of schema required fields.
+
 ## [1.0.5] - 2026-04-29
 
 ### Fixed
