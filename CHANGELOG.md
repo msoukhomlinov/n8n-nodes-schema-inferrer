@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.5] - 2026-04-29
+
+### Fixed
+- **Create Schema**: observed top-level `null` values in samples are now preserved as nullable schema types (for example, `["string", "null"]`) so downstream SQL nullability is inferred correctly.
+- **Generate Column Topup Query**: added columns are no longer forced to `NOT NULL` in `ALTER TABLE ... ADD COLUMN` output, which avoids conflicts with existing rows in already-populated tables.
+
 ## [1.0.4] - 2026-02-19
 
 ### Fixed

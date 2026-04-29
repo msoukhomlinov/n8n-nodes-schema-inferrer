@@ -49,6 +49,109 @@ function clearAllRequiredFields(schema: JsonSchema): void {
   }
 }
 
+function ensureTypeAllowsNull(propertySchema: JsonSchema): void {
+  const currentType = propertySchema.type;
+  if (currentType === 'null') {
+    return;
+  }
+  if (Array.isArray(currentType)) {
+    if (!currentType.includes('null')) {
+      propertySchema.type = [...currentType, 'null'];
+    }
+    return;
+  }
+  if (typeof currentType === 'string') {
+    propertySchema.type = [currentType, 'null'];
+  }
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function mergeObservedNullability(
+  schema: JsonSchema,
+  samples: unknown[],
+  rootSchema?: JsonSchema,
+  visited: Set<JsonSchema> = new Set(),
+): void {
+  if (visited.has(schema)) return;
+  visited.add(schema);
+  const root = rootSchema ?? schema;
+
+  if (!schema.properties) {
+    // Follow $ref to definitions so we handle standard quicktype output where
+    // properties live under definitions rather than inline at root.
+    if (
+      typeof schema.$ref === 'string' &&
+      schema.$ref.startsWith('#/definitions/') &&
+      root.definitions
+    ) {
+      const defName = schema.$ref.replace('#/definitions/', '');
+      const target = root.definitions[defName];
+      if (target) mergeObservedNullability(target, samples, root, visited);
+    }
+    return;
+  }
+
+  if (samples.length === 0) return;
+
+  const properties = schema.properties as Record<string, JsonSchema>;
+
+  for (const [propertyName, propertySchema] of Object.entries(properties)) {
+    const propertySamples = samples
+      .filter(isObjectRecord)
+      .map((sample) => sample[propertyName]);
+
+    // Resolve $ref for this property first, before any null marking
+    let resolvedPropertySchema = propertySchema;
+    if (
+      !propertySchema.properties &&
+      typeof propertySchema.$ref === 'string' &&
+      propertySchema.$ref.startsWith('#/definitions/') &&
+      root.definitions
+    ) {
+      const defName = propertySchema.$ref.replace('#/definitions/', '');
+      const target = root.definitions[defName];
+      if (target) resolvedPropertySchema = target;
+    }
+
+    // Now mark nullable on the resolved schema (not the $ref wrapper)
+    if (propertySamples.some((value) => value === null)) {
+      ensureTypeAllowsNull(resolvedPropertySchema);
+    }
+
+    const nonNullSamples = propertySamples.filter((value) => value !== null && value !== undefined);
+    if (nonNullSamples.length === 0) continue;
+
+    if (resolvedPropertySchema.properties) {
+      mergeObservedNullability(resolvedPropertySchema, nonNullSamples, root, visited);
+    }
+
+    if (resolvedPropertySchema.items && typeof resolvedPropertySchema.items === 'object') {
+      const itemsSchema = resolvedPropertySchema.items as JsonSchema;
+      const arrayItemSamples = nonNullSamples.reduce<unknown[]>((acc, value) => {
+        if (Array.isArray(value)) {
+          for (const entry of value) {
+            if (entry !== undefined) {
+              acc.push(entry);
+            }
+          }
+        }
+        return acc;
+      }, []);
+      // Mark items schema nullable if any array item is null
+      if (arrayItemSamples.some((v) => v === null)) {
+        ensureTypeAllowsNull(itemsSchema);
+      }
+      const nonNullItemSamples = arrayItemSamples.filter((v) => v !== null && v !== undefined);
+      if (nonNullItemSamples.length > 0) {
+        mergeObservedNullability(itemsSchema, nonNullItemSamples, root, visited);
+      }
+    }
+  }
+}
+
 function lowercaseSchemaProperties(schema: JsonSchema): void {
   // Transform properties keys to lowercase
   if (schema.properties) {
@@ -217,6 +320,11 @@ export async function createSchema(
     const { lines } = await quicktype(quicktypeOptions);
     const schemaString = lines.join('\n');
     let schema = JSON.parse(schemaString) as JsonSchema;
+
+    // Merge observed nullability before lowercasing so schema keys and sample keys
+    // share the same casing during the merge.
+    const sampleItems = items.map((item) => item.json ?? {});
+    mergeObservedNullability(schema, sampleItems);
 
     // Apply lowercasing if enabled (before other transformations)
     const namingOptionsRaw = context.getNodeParameter('namingOptions', 0, {}) as {
@@ -553,5 +661,3 @@ export async function createSchema(
     throw new NodeOperationError(context.getNode(), 'Failed to infer JSON schema: Unknown error');
   }
 }
-
-
