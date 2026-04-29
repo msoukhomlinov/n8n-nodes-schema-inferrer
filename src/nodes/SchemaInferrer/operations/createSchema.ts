@@ -69,7 +69,14 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function mergeObservedNullability(schema: JsonSchema, samples: unknown[], rootSchema?: JsonSchema): void {
+function mergeObservedNullability(
+  schema: JsonSchema,
+  samples: unknown[],
+  rootSchema?: JsonSchema,
+  visited: Set<JsonSchema> = new Set(),
+): void {
+  if (visited.has(schema)) return;
+  visited.add(schema);
   const root = rootSchema ?? schema;
 
   if (!schema.properties) {
@@ -82,7 +89,7 @@ function mergeObservedNullability(schema: JsonSchema, samples: unknown[], rootSc
     ) {
       const defName = schema.$ref.replace('#/definitions/', '');
       const target = root.definitions[defName];
-      if (target) mergeObservedNullability(target, samples, root);
+      if (target) mergeObservedNullability(target, samples, root, visited);
     }
     return;
   }
@@ -96,14 +103,7 @@ function mergeObservedNullability(schema: JsonSchema, samples: unknown[], rootSc
       .filter(isObjectRecord)
       .map((sample) => sample[propertyName]);
 
-    if (propertySamples.some((value) => value === null)) {
-      ensureTypeAllowsNull(propertySchema);
-    }
-
-    const nonNullSamples = propertySamples.filter((value) => value !== null && value !== undefined);
-    if (nonNullSamples.length === 0) continue;
-
-    // Resolve $ref for nested object properties before recursing
+    // Resolve $ref for this property first, before any null marking
     let resolvedPropertySchema = propertySchema;
     if (
       !propertySchema.properties &&
@@ -116,8 +116,16 @@ function mergeObservedNullability(schema: JsonSchema, samples: unknown[], rootSc
       if (target) resolvedPropertySchema = target;
     }
 
+    // Now mark nullable on the resolved schema (not the $ref wrapper)
+    if (propertySamples.some((value) => value === null)) {
+      ensureTypeAllowsNull(resolvedPropertySchema);
+    }
+
+    const nonNullSamples = propertySamples.filter((value) => value !== null && value !== undefined);
+    if (nonNullSamples.length === 0) continue;
+
     if (resolvedPropertySchema.properties) {
-      mergeObservedNullability(resolvedPropertySchema, nonNullSamples, root);
+      mergeObservedNullability(resolvedPropertySchema, nonNullSamples, root, visited);
     }
 
     if (resolvedPropertySchema.items && typeof resolvedPropertySchema.items === 'object') {
@@ -138,7 +146,7 @@ function mergeObservedNullability(schema: JsonSchema, samples: unknown[], rootSc
       }
       const nonNullItemSamples = arrayItemSamples.filter((v) => v !== null && v !== undefined);
       if (nonNullItemSamples.length > 0) {
-        mergeObservedNullability(itemsSchema, nonNullItemSamples, root);
+        mergeObservedNullability(itemsSchema, nonNullItemSamples, root, visited);
       }
     }
   }
